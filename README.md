@@ -203,3 +203,8 @@ Haftalık ilerleme kayıtları: [docs/weekly/](docs/weekly/)
 
 [Apache License 2.0](LICENSE) — yarışma bitiş tarihinde Türkiye Açık Kaynak Platformu
 GitHub hesabında paylaşılacaktır.
+
+
+## Yapılanlar 
+
+Faz 0 Tamamlandı.
