@@ -1,32 +1,31 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# h200-prod — Yarışma donanımı (NVIDIA H200, 141 GB HBM3e).
+# h200-prod — Organizasyonun yarışma çıkarım altyapısı (8× NVIDIA H200).
 #
 # Final performans sayıları BU profilde ölçülüp raporlanır (RTF, TTFT, tok/s,
 # tepe VRAM). Şartname Bölüm 4: "Video işleme süresi, model inference süresi,
 # bellek ve donanım kullanımı ... önemli değerlendirme kriterleri arasındadır."
 #
-# İki ayrı vLLM örneği:
-#   :8000  Qwen3-VL-32B-Instruct FP8  → ağır görsel anlama
-#   :8001  Qwen3-8B-Instruct          → hızlı planlama/yönlendirme/yargıçlık
-# Ayrım, ajan turlarındaki gecikmeyi ciddi biçimde düşürür.
-#
-# H200 Hopper (sm90): FP8 native desteklenir.
+# L3 bu fazda resmi OpenAI-uyumlu uç noktadaki Slot B'yi kullanır. Gerçek model
+# organizasyon tarafından seçilir; uygulamanın bağlandığı kararlı ad ``vlm``dir.
+# Uç nokta ve takıma özel anahtar repoya yazılmaz, ortamdan okunur.
 # ─────────────────────────────────────────────────────────────────────────────
 name: h200-prod
-description: "Yarışma donanımı. FP8 + prefix caching. Final KPI sayıları burada üretilir."
+description: "Resmi H200 çıkarım altyapısı. Slot B (vlm), BF16 ve guided JSON."
 
 cassette_dir: data/cassettes
 cassette_mode: passthrough    # gerçek koşu; kaset devre dışı
 
 vlm:
   backend: vllm
-  model: Qwen/Qwen3-VL-32B-Instruct
-  base_url: http://localhost:8000/v1
-  dtype: fp8                  # Hopper native FP8
+  model: vlm                  # Slot B erişim adı; fiziksel model adına bağlanma
+  base_url: ""
+  base_url_env: TEKNOFEST_INFERENCE_BASE_URL
+  api_key_env: TEKNOFEST_API_KEY
+  dtype: bfloat16             # resmi altyapıda nicelemesiz BF16
   max_model_len: 65536
   guided_json: true
   enable_prefix_caching: true # uzun video bağlamı turlar arası paylaşılır
-  max_concurrency: 8
+  max_concurrency: 2
   request_timeout_s: 120.0
 
 planner:

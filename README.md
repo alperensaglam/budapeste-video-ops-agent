@@ -68,13 +68,85 @@ komutlara delege eder). Windows'ta `make` olmadığı için kanonik koşucu `tas
 ```bash
 GOZCU_PROFILE=cpu-dev    python tasks.py test    # varsayılan — GPU yok, kasetten oynatma
 GOZCU_PROFILE=colab-t4   python tasks.py demo    # Kaggle/Colab ücretsiz T4
-GOZCU_PROFILE=h200-prod  python tasks.py bench   # yarışma donanımı
+GOZCU_PROFILE=h200-prod  python tasks.py bench   # resmi H200 inference altyapısı
 ```
 
 ```bash
 python tasks.py profiles   # mevcut profilleri listeler
 python tasks.py --list     # tüm görevler
 ```
+
+### Faz 1 — Emre / L3: tek segment VLM analizi
+
+Durum: **tamamlandı.** Bu ince dikey dilim, L0-L2'den gelen tek segmentlik kareleri
+Slot B'ye gönderir ve guided JSON ile doğrulanmış bir `SegmentAnalysis` üretir.
+
+Akış:
+
+```text
+FrameRef[] + segment zamanı + isteğe bağlı EvidenceItem[]
+                    │
+                    ▼
+       segment_analysis@v1 Türkçe prompt'u
+                    │
+                    ▼
+     OpenAI-uyumlu vLLM · model adı: vlm (Slot B)
+                    │  response_format: json_schema
+                    ▼
+       JSON Schema doğrulama + Pydantic doğrulama
+                    │
+                    ▼
+              SegmentAnalysis
+```
+
+Yarışma altyapısı tek OpenAI-uyumlu uç nokta ve takıma özel anahtar verir. L3,
+fiziksel model adına bağlanmaz; Slot B'nin kararlı erişim adı olan **`vlm`** kullanılır.
+Altyapı dokümanına göre Slot B, GPU 4-5 üzerinde TP2 ve 282 GB bellek bütçesiyle
+nicelemesiz BF16 çalışır. Qwen3-VL-32B-Instruct önerilen modeldir; nihai model
+organizasyon tarafından değiştirilebileceği için kodda hard-code edilmemiştir.
+
+Anahtar veya uç nokta repoya yazılmaz:
+
+```powershell
+# Windows PowerShell
+$env:GOZCU_PROFILE = "h200-prod"
+$env:TEKNOFEST_INFERENCE_BASE_URL = "<organizasyonun-verdiği-openai-uyumlu-url>"
+$env:TEKNOFEST_API_KEY = "<takıma-özel-anahtar>"
+python -m pip install -e ".[understanding]"
+```
+
+```bash
+# Linux/macOS
+export GOZCU_PROFILE=h200-prod
+export TEKNOFEST_INFERENCE_BASE_URL='<organizasyonun-verdiği-openai-uyumlu-url>'
+export TEKNOFEST_API_KEY='<takıma-özel-anahtar>'
+python -m pip install -e '.[understanding]'
+```
+
+Alperen'in ajan katmanı L3 aracını şu şekilde kurabilir:
+
+```python
+from gozcu.config import load_profile
+from gozcu.serving import create_vlm_client
+from gozcu.understanding import AnalyzeSegmentTool, SegmentAnalyzer
+
+profile = load_profile("h200-prod")
+vlm = create_vlm_client(profile, cassette_name="phase1-segments")
+analyze_video_segment = AnalyzeSegmentTool(SegmentAnalyzer(vlm))
+```
+
+Araç adı `analyze_video_segment`'tir. Parametre şeması `AnalyzeSegmentArgs`, dönüş
+şeması `SegmentAnalysis` üzerinden otomatik üretilir. Gerçek çağrıda her `FrameRef`
+için dosya yolu veya base64 veriyle birlikte doğru SHA-256 verilmelidir; istemci
+görüntüyü göndermeden önce hash'i doğrular. CPU testleri gerçek GPU/API olmadan
+`ScriptedVLM` ile çalışır:
+
+```bash
+python -m pytest tests/understanding tests/serving/test_vllm_client.py
+```
+
+Faz 2'de planlanan segment→sahne→video hiyerarşik özetleme, model bake-off ve
+prompt v2 bu teslimin kapsamında değildir.
 
 ---
 
@@ -147,13 +219,15 @@ Tümü açık kaynak, tümü Apache-2.0 uyumlu. **AGPL ve non-commercial bağım
 
 ---
 
-## Yerel çalışma garantisi
+## Yerel çalışma ve yarışma altyapısı
 
 Şartname: *"Harici API, kapalı servis veya bulut bağımlılığı kabul edilmez. Tüm model
 ve bileşenler lokal olarak çalıştırılmalıdır."*
 
-- Tüm modeller yerelde çalışır; ağ çağrısı yalnızca `localhost` vLLM endpoint'inedir.
-- `openai` istemci kütüphanesi **yalnızca** vLLM'in OpenAI-uyumlu yerel arayüzü için
+- Günlük CPU geliştirme kaset replay ile; bağımsız geliştirme profili yerel vLLM ile
+  çalışır. Yarışma profili yalnızca organizasyonun sağladığı H200 inference düğümüne
+  bağlanır; ticari üçüncü taraf model API'si kullanılmaz.
+- `openai` istemci kütüphanesi **yalnızca** vLLM'in OpenAI-uyumlu arayüzü için
   kullanılır; OpenAI servisine hiçbir istek gitmez.
 - `make offline-demo` ağ bağlantısı olmadan çalışır ve final provasında zorunludur.
 - Kullanılan hiçbir ücretli yazılım veya satın alınmış üçüncü taraf hizmeti yoktur.
@@ -191,7 +265,7 @@ Ayrıntı: [docs/architecture.md §8](docs/architecture.md).
 |---|---|---|
 | **Alperen** | L4 — Ajan çekirdeği | `agent/` |
 | **Hasan** | L0–L2 — Algı & Kanıt Grafiği | `ingest/`, `perception/`, `evidence/` |
-| **Emre** | L3 + servisleme + performans | `understanding/`, `serving/` |
+| **Emre** | L3 + servisleme + performans | `understanding/`, `serving/`, `eval/perf/` |
 | **İbrahim** | L5–L6 — Karar, aksiyon & ürün | `decision/`, `mocks/`, `api/`, `ui/` |
 
 Dönüşümlü roller (her fazda el değiştirir): Sürüm Kaptanı · Eval Kaptanı · Uyum Kaptanı.
@@ -204,7 +278,8 @@ Haftalık ilerleme kayıtları: [docs/weekly/](docs/weekly/)
 [Apache License 2.0](LICENSE) — yarışma bitiş tarihinde Türkiye Açık Kaynak Platformu
 GitHub hesabında paylaşılacaktır.
 
+## Faz durumu
 
-## Yapılanlar 
-
-Faz 0 Tamamlandı.
+- Faz 0: sözleşmeler ve record/replay altyapısı tamamlandı.
+- Faz 1 / Emre-L3: tek segment VLM analizi, guided JSON, Slot B istemcisi ve ajan
+  aracı tamamlandı.

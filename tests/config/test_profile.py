@@ -15,6 +15,7 @@ from gozcu.config import (
     DEFAULT_PROFILE,
     Profile,
     VLMBackend,
+    VLMConfig,
     available_profiles,
     load_profile,
 )
@@ -90,19 +91,22 @@ class TestGpuProfilleri:
         """Emre'nin profili ekibin geri kalanı için kaset üretir."""
         assert load_profile("colab-t4").cassette_mode == "record"
 
-    def test_h200_fp8_kullanir(self) -> None:
-        """H200 = Hopper (sm90): FP8 native desteklenir."""
+    def test_h200_resmi_vlm_slotunu_bfloat16_kullanir(self) -> None:
+        """Organizasyon Slot B'yi nicelemesiz BF16 ve ``vlm`` adıyla sunar."""
         p = load_profile("h200-prod")
-        assert p.vlm.dtype == "fp8"
+        assert p.vlm.model == "vlm"
+        assert p.vlm.dtype == "bfloat16"
+        assert p.vlm.base_url_env == "TEKNOFEST_INFERENCE_BASE_URL"
+        assert p.vlm.api_key_env == "TEKNOFEST_API_KEY"
         assert p.vlm.enable_prefix_caching is True
 
     def test_h200_uzun_video_destekler(self) -> None:
         """Vardiya raporu senaryosu için en az 1 saat."""
         assert load_profile("h200-prod").perception.max_video_seconds >= 3600
 
-    def test_gpu_profilleri_yerel_endpoint_kullanir(self) -> None:
-        """Şartname: dış API / kapalı servis / bulut bağımlılığı YASAK."""
-        for ad in ("colab-t4", "h200-prod"):
+    def test_colab_profili_yerel_endpoint_kullanir(self) -> None:
+        """Bağımsız Colab profili yalnızca yerel vLLM'e bağlanır."""
+        for ad in ("colab-t4",):
             p = load_profile(ad)
             for url in (p.vlm.base_url, p.planner.base_url):
                 assert "localhost" in url or "127.0.0.1" in url, (
@@ -136,3 +140,23 @@ class TestOrtakDavranis:
         assert isinstance(yol, Path)
         assert yol.is_absolute()
         assert yol.name == "cassettes"
+
+
+class TestVlmSirYonetimi:
+    def test_endpoint_ve_anahtar_ortamdan_cozulur(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("TEST_VLM_URL", "https://inference.example/v1/")
+        monkeypatch.setenv("TEST_VLM_KEY", "takim-anahtari")
+        config = VLMConfig(
+            base_url="",
+            base_url_env="TEST_VLM_URL",
+            api_key_env="TEST_VLM_KEY",
+        )
+
+        assert config.resolved_base_url() == "https://inference.example/v1"
+        assert config.resolved_api_key() == "takim-anahtari"
+
+    def test_eksik_sir_erken_hata_verir(self) -> None:
+        config = VLMConfig(base_url="", base_url_env="TANIMSIZ_VLM_URL")
+
+        with pytest.raises(RuntimeError, match="TANIMSIZ_VLM_URL"):
+            config.resolved_base_url()

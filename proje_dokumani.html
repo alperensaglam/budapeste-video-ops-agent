@@ -45,9 +45,11 @@
 ## Context
 
 Ekip (Alperen, Hasan, Emre, İbrahim) TEKNOFEST 2026 "Yapay Zeka Dil Ajanları Yarışması" 3. Senaryo'ya
-katılıyor: **video tabanlı olay analizi ve operasyonel karar destek sistemi**. Sistem tamamen yerel
-çalışmalı, dış API kullanmamalı, vLLM benzeri yerel servisleme altyapısı kullanmalı, Türkçe özet +
-zaman damgalı olay listesi + risk değerlendirmesi + aksiyon önerileri üretmeli, çıktılar JSON olmalı.
+katılıyor: **video tabanlı olay analizi ve operasyonel karar destek sistemi**. Uygulama bileşenleri
+yerel/açık kaynak çalışmalı; ticari üçüncü taraf model API'si kullanılmamalı. Yarışmada model çıkarımı,
+organizasyonun sağladığı vLLM tabanlı resmî H200 altyapısındaki tek OpenAI-uyumlu uç nokta üzerinden
+yapılacak. Sistem Türkçe özet + zaman damgalı olay listesi + risk değerlendirmesi + aksiyon önerileri
+üretmeli, çıktılar JSON olmalı.
 
 Repo şu an boş (`README.md`, Apache-2.0 `LICENSE`, `.gitignore`, şartname PDF'i). Bu plan; sıfırdan
 inşa edilecek sistemin mimarisini, teknoloji seçimlerini, fazlı yol haritasını ve 4 kişilik eşit iş
@@ -55,8 +57,8 @@ bölümünü tanımlar.
 
 **Kısıtlar (kullanıcı yanıtları):**
 - Takvim belirsiz → yol haritası **faz bazlı**, her faza adam-gün tahmini konuldu.
-- Donanım: şu an **sadece CPU / Colab-Kaggle** → mimari "profil" tabanlı, geliştirme CPU'da yapılabilir
-  olmalı. H200 ileride gelirse aynı kod ölçeklenir.
+- Donanım: yerel geliştirmede **CPU / isteğe bağlı Colab-Kaggle**, yarışma çıkarımında resmî
+  **8×H200 hizmet düğümü** → mimari profil tabanlı ve CPU'da kaset replay ile geliştirilebilir olmalı.
 - Yetkinlik: ekip 4 alanı da kapsıyor (CV, LLM/agent, backend/MLOps, frontend) → temiz dikey bölünme.
 - Kapsam: **dengeli** → çekirdek sağlam, seçili farklılaştırıcılar; fine-tuning ve ses opsiyonel.
 
@@ -122,7 +124,7 @@ sistem davranışı**". Yani yük testi ve RTF (real-time factor) sayıları rap
 | Repo'da (1) tam bağımlılık listesi (2) adım adım çalıştırma (3) **veri setinin herkese açık indirme linki** | Birebir madde; eksikse puan kaybı |
 | Apache-2.0 ile lisanslama zorunlu | ✅ mevcut — ama **AGPL bağımlılık koymayın** (bkz. §5) |
 | Turnitin + "önceden başlamış proje kabul edilmez" | Repo'nun ilk commit'i 2026-08-20 ✅. Yarışma penceresinden önceki kod parçası taşımayın. |
-| "Projenin bağımlı olduğu **ücretli hiçbir yazılım** kullanılamaz" + "3. taraflardan hizmet satın alınamaz" | **Colab Pro / paralı bulut satın almayın.** Kaggle ücretsiz katman güvenli. |
+| "Projenin bağımlı olduğu **ücretli hiçbir yazılım** kullanılamaz" + "3. taraflardan hizmet satın alınamaz" | **Colab Pro / paralı bulut satın almayın.** Organizasyonun resmî inference hizmeti yarışma altyapısıdır; bunun dışında ücretli API bağımlılığı eklemeyin. |
 | İki ayrı video gerekli: teslim için **≤10 dk demo videosu**, sunumda **1 dk demo videosu** + **4 dk sunum** | Ayrı ayrı üretilmeli |
 | Sunum **PDF ve PPTX** formatında + **tüm üyelerin görev tanımları** sunumda | Birebir madde |
 | Final **fizikî**: Bilişim Vadisi Kocaeli, son 24 saat | **Sahada internet/GPU garantisi yok → offline demo paketi şart** (bkz. §8 R5) |
@@ -296,14 +298,16 @@ gerekirse onarım turu. Hedef KPI: **%100 geçerli JSON** (ölçülür ve raporl
 | Poz / düşme | RTMPose (MMPose) veya ViTPose | Apache-2.0 | düşme + hareketsizlik |
 | ASR (TR) | faster-whisper (large-v3-turbo / small) | MIT | kelime zaman damgası |
 | Ses olayı | BEATs / AST (AudioSet) | MIT | çığlık, alarm, çarpma, cam kırılması |
-| **VLM (ana)** | **Qwen3-VL-8B / 32B-Instruct** | **Apache-2.0** | interleaved-MRoPE + **metin–zaman damgası hizalaması** (saniye seviyesi olay lokalizasyonu), uzun video, güçlü OCR, iyi Türkçe |
+| **VLM (ana)** | Slot B `vlm` — önerilen aday **Qwen3-VL-32B-Instruct** | **Apache-2.0** | GPU 4-5, TP2, 282 GB; video destekli, nicelemesiz BF16; kod fiziksel model adına bağlanmaz |
 | VLM (CPU/Colab dev) | Qwen3-VL-2B/4B AWQ, MiniCPM-V 4.5 int4, SmolVLM2-2.2B | Apache-2.0 | 16 GB T4'e sığar |
 | VLM (yedek/karşılaştırma) | InternVL3.5, GLM-4.5V, Keye-VL-1.5 | Apache/MIT | bake-off için |
-| Planner/judge (metin) | Qwen3-4B/8B (H200'de 30B-A3B MoE) | Apache-2.0 | hybrid thinking; hızlı router |
-| Servisleme | **vLLM** (OpenAI-uyumlu) | Apache-2.0 | şartname birebir istiyor |
-| Yapılandırılmış çıktı | vLLM `guided_json` + xgrammar + Pydantic v2 | Apache/MIT | |
-| Gömme (TR) | BGE-M3 | MIT | çok dilli, Türkçe iyi |
-| Yeniden sıralama | bge-reranker-v2-m3 | Apache-2.0 | |
+| Planner/judge (metin) | Slot A `llm-large` | seçilen modele göre | GPU 0-3, TP4, 564 GB; uzun bağlamlı ana muhakeme |
+| Hızlı biçimsel işler | Slot C `llm-fast` | seçilen modele göre | GPU 6, 141 GB; şema üretimi, sınıflandırma, kısa yeniden deneme |
+| Servisleme | Organizasyon yönetimli **vLLM** (OpenAI-uyumlu) | Apache-2.0 | tüm slotlar tek endpoint + takıma özel anahtar üzerinden erişilir |
+| Yapılandırılmış çıktı | `response_format: json_schema` + JSON Schema + Pydantic v2 | MIT | istemci ve sözleşme katmanında iki kez doğrulanır |
+| Gömme (TR) | Slot D `embed` — önerilen Qwen3-Embedding-4B | Apache-2.0 | resmî yardımcı servis |
+| Yeniden sıralama | Slot D `rerank` — önerilen Qwen3-Reranker-4B | Apache-2.0 | resmî yardımcı servis |
+| Yönlendirme / güvenlik | Slot D `router` / `guard` | seçilen modele göre | GPU 7 üzerinde paylaşımlı yardımcı servisler |
 | Vektör DB | Chroma veya Qdrant (yerel) | Apache-2.0 | |
 | Ajan çerçevesi | **LangGraph** | MIT | durum makinesi + checkpointer + interrupt (HITL) + streaming |
 | Backend | FastAPI + SSE | MIT | canlı ajan izi akışı |
@@ -324,12 +328,29 @@ Tek kod tabanı, üç profil (`config/profiles/*.yaml`):
 |---|---|---|---|---|
 | `cpu-dev` | Herkesin dizüstü | **FakeVLM (kaset replay)** veya Qwen3-VL-2B GGUF (llama.cpp) | ONNX Runtime CPU, düşük fps | 4 kişinin **GPU'suz tam hızda** çalışması |
 | `colab-t4` | Kaggle 2×T4 (haftada 30 GPU-saat ×4 hesap ≈ 120 saat, ücretsiz) | Qwen3-VL-4B/8B AWQ, `--dtype half` | ONNX GPU | Gerçek doğrulama, kaset kaydı |
-| `h200-prod` | Yarışma donanımı | Qwen3-VL-32B FP8 (veya 30B-A3B) + Qwen3-8B planner | TensorRT | Final performans sayıları |
+| `h200-prod` | Organizasyonun resmî H200 hizmeti | Slot B `vlm`, nicelemesiz BF16, guided JSON | Yerel algı + resmî inference | Final çalışma ve performans sayıları |
 
 > **Bu projenin en önemli mühendislik kararı:** **Sözleşme-önce + kayıt/oynatma (record/replay).**
-> Faz 0'da tüm Pydantic şemaları dondurulur. Emre Kaggle'da gerçek VLM çıktılarını "kaset" olarak
-> kaydeder; Alperen, Hasan ve İbrahim bu kasetlerle **CPU'da, deterministik ve saniyeler içinde**
+> Faz 0'da tüm Pydantic şemaları dondurulur. Emre resmî Slot B'den (veya yerel Colab profilinden)
+> gerçek VLM çıktılarını "kaset" olarak kaydeder; Alperen, Hasan ve İbrahim bu kasetlerle **CPU'da, deterministik ve saniyeler içinde**
 > tüm ajan/UI/eval kodunu geliştirip test eder. GPU darboğazı 4 kişiyi değil 1 kişiyi bağlar.
+
+### 4.2 Resmî yarışma inference katmanları
+
+Tüm katmanlara aynı OpenAI-uyumlu endpoint ve takıma özel API anahtarıyla erişilir. Katman seçimi
+yalnızca istek gövdesindeki kararlı model adını değiştirir. Endpoint ve anahtar repoya yazılmaz;
+`TEKNOFEST_INFERENCE_BASE_URL` ve `TEKNOFEST_API_KEY` ortam değişkenlerinden okunur.
+
+| Slot | Erişim adı | Donanım / bellek | Projedeki kullanım |
+|---|---|---|---|
+| A | `llm-large` | GPU 0-3, TP4, 564 GB | Ana ajan muhakemesi, uzun bağlam, planlama |
+| B | `vlm` | GPU 4-5, TP2, 282 GB | Görüntü/video analizi; Emre'nin L3 tek-segment akışı |
+| C | `llm-fast` | GPU 6, 141 GB | Kısa yapılandırılmış çıktı, sınıflandırma, hızlı retry |
+| D | `router`, `embed`, `rerank`, `guard` | GPU 7, 141 GB paylaşımlı | Yönlendirme, RAG ve içerik denetimi |
+
+Tüm servis modelleri niceleme uygulanmadan **BF16** çalışır. Model anketi sonuçlanana kadar kod,
+aday Hugging Face model kimliklerini değil yukarıdaki servis adlarını kullanır. Slot B için teknik
+ekibin önerisi Qwen3-VL-32B-Instruct'tır; bu bir dağıtım tercihi, uygulama sözleşmesi değildir.
 
 ---
 
@@ -370,9 +391,9 @@ Tek kod tabanı, üç profil (`config/profiles/*.yaml`):
 | **Sesli operatör etkileşimi** (Whisper + Piper TR) | Orta — şartname demo maddesinde geçiyor | Orta |
 | **LoRA ince ayar** (Türkçe İSG rapor diliyle özetleme) | Orta | Yüksek — opsiyonel bırakıldı |
 
-> Not: Şartname **eğitimi/fine-tuning'i yasaklamıyor.** ("eğitim" kelimesi metinde hiç geçmiyor.)
-> Yasaklar: dış API, kapalı servis, bulut bağımlılığı, ücretli yazılım. Yani H200 gelirse LoRA
-> tamamen serbest.
+> Not: Resmî H200 katmanları bir **inference hizmetidir**; eğitim/LoRA erişimi varsayılmaz. LoRA ancak
+> ayrıca yetkilendirilmiş yerel eğitim donanımı sağlanırsa değerlendirilir ve çekirdek teslim için
+> zorunlu değildir.
 
 ---
 
@@ -387,7 +408,7 @@ Buraya önden bakın; sürprizler burada çıkar.
 | 3 | **Türkçe prompt mühendisliği** | Tutarlı format, halüsinasyonsuz, operatör diline uygun çıktı çok iterasyon ister | Versiyonlanmış prompt kütüphanesi (`prompts/v1/*.jinja`) + her prompt için regresyon testi + LLM-as-judge ile A/B |
 | 4 | **Uzun video bağlam yönetimi** | 30+ dk videoda nedensellik kaybolmadan segment→bütün agregasyonu | Hiyerarşik map-reduce + Kanıt Grafiği'nin harici bellek olarak kullanılması + olay zinciri (event linking) |
 | 5 | **Verifier tasarımı** | VLM iddiası ↔ kanıt olgusu eşleşmesi bulanık bir problem | Hibrit: sözlük/kural + gömme benzerliği + küçük LLM yargıcı; eşikler eval ile kalibre |
-| 6 | **Gecikme / RTF < 1** | Çok kareli VLM çağrıları yavaş | Uyarlanabilir örnekleme + prefix caching + async batching + içerik-hash cache + FP8 |
+| 6 | **Gecikme / RTF < 1** | Çok kareli VLM çağrıları yavaş | Uyarlanabilir örnekleme + istemci tarafı async batching + içerik-hash cache + Slot B'nin geniş KV cache bütçesi |
 | 7 | **CPU'da geliştirme** | Ekibin GPU'su yok | Kaset/replay mimarisi (§4.1) — bu yüzden Faz 0'da sözleşmeler donuyor |
 | 8 | **"Kural tabanlı değil" ile "güvenli" gerilimi** | Model tabanlı risk bazen yanlış karar verir; ama sabit kural puan kaybettirir | Model karar verir; ince "emniyet bariyeri" sadece **alt sınır** koyar (ör. hareketsiz kişi asla "Düşük" olamaz) ve bu dokümanda *guardrail* olarak açıkça gerekçelendirilir |
 | 9 | **Fizikî finalde demo güvenilirliği** | Kocaeli'de internet/GPU garantisi yok | **Offline demo paketi** (bkz. §8 R5) |
@@ -399,7 +420,7 @@ Buraya önden bakın; sürprizler burada çıkar.
 | # | Risk | Olasılık | Etki | Azaltım |
 |---|---|---|---|---|
 | R1 | Sistem "video→JSON" olarak algılanır, ajan puanı alınamaz | Yüksek | Kritik | Ürünü **diyalog ajanı** olarak konumla; her demo diyalogla başlasın; mimari diyagramda ajan merkezde |
-| R2 | GPU erişimi gecikir/H200 gelmez | Orta | Yüksek | 3 profil; `cpu-dev` ile tam işlevsel (küçük modelle) çalışır; Kaggle ücretsiz katman yedek |
+| R2 | Resmî inference endpoint'i gecikir veya geçici erişilemez | Orta | Yüksek | 3 profil; `cpu-dev` kaset replay ile tam işlevsel; yerel/Colab vLLM ve offline kaset paketi yedek |
 | R3 | VLM halüsinasyonu jüri demosunda yakalanır | Orta | Yüksek | Verifier + support_score + çekimserlik; demoda kasten "boş video" senaryosu göster |
 | R4 | AGPL/non-commercial lisans kirliliği | Orta | Yüksek | §4 tablosuna sadık kal; CI'da `pip-licenses` kontrolü; `docs/licenses.md` |
 | R5 | Fizikî finalde demo çöker | Orta | Kritik | **Offline demo paketi:** önceden hesaplanmış kanıt+kaset cache'i + küçük yerel model + 1 dk yedek video + tam offline `make demo`; internetsiz prova |
@@ -435,7 +456,7 @@ Amaç: **30 saniyelik bir video uçtan uca çalışsın.** Kalite değil, *bağl
 - L0: decode + sabit örnekleme (uyarlanabilir henüz yok)
 - L1: sadece kişi/nesne tespiti + takip
 - L2: Kanıt Grafiği v1 (yazma + sorgu API'si)
-- L3: tek segment VLM analizi + guided JSON
+- L3: resmî Slot B `vlm` ile tek segment VLM analizi + guided JSON + yerel şema doğrulama
 - L4: LangGraph minimal grafik (plan → execute → report), 3 araç
 - L5: 3 mock araç (`dispatch_medical_team`, `notify_security`, `create_incident_report`)
 - L6: FastAPI `/analyze` + `/chat` (SSE) + çok basit UI + CLI
@@ -475,7 +496,7 @@ sonra sistem her zaman çalışır durumda kalır.**
 
 ### Faz 4 — Performans & Cila (≈24 adam-gün, ~1.5 hafta)
 
-- H200/GPU profil ayarı: FP8, prefix caching, chunked prefill, async batching, ONNX/TensorRT algı
+- Resmî H200 istemci profil ayarı: BF16 servis alias'ları, eşzamanlılık, async batching, içerik cache'i; ONNX/TensorRT algı
 - Yük testi (eşzamanlılık 1/4/16), RTF, TTFT, tok/s, tepe VRAM raporu
 - `docs/`: mimari, senaryolar, mock fonksiyonlar, kurulum, **karşılaşılan zorluklar ve çözümler**,
   **ölçümleme sonuçları**, **ölçekleme ihtiyaçları** (hepsi şartname maddeleri)
@@ -504,7 +525,7 @@ paylaşılan ortak yük. Kimse "yardımcı" değil; herkesin demoda gösterebile
 |---|---|---|---|
 | **Alperen** | **L4 — Ajan Çekirdeği** | `agent/` (graph, nodes, tools registry, memory×4, prompts, policies) | Repo sahibi/kaptan; sistemin kalbi ve rubriğin %35'i burada; CPU'da tam geliştirilebilir |
 | **Hasan** | **L0-L2 — Algı & Kanıt** | `ingest/`, `perception/`, `evidence/` | Klasik CV; ONNX ile CPU'da çalışabilir; Kanıt Grafiği'nin tek sahibi |
-| **Emre** | **L3 + Servisleme + Performans** | `understanding/`, `serving/`, `eval/perf/` | **Ekibin atanmış GPU sahibi** (Kaggle). Model bake-off, vLLM ayarı, Türkçe prompt kütüphanesi, **kaset üretimi** (diğer 3 kişiyi besler) |
+| **Emre** | **L3 + Servisleme + Performans** | `understanding/`, `serving/`, `eval/perf/` | **Inference entegrasyonu sahibi.** Slot B `vlm` istemcisi, guided JSON, Türkçe prompt kütüphanesi, model bake-off ve **kaset üretimi** (diğer 3 kişiyi besler) |
 | **İbrahim** | **L5-L6 — Karar/Aksiyon + Ürün** | `decision/`, `mocks/`, `api/`, `ui/` | Frontend + backend; mock araç paketi + hata enjeksiyonu + operatör konsolu + HITL akışı |
 
 ### Ortak yük — her fazda herkes için eşit (~%25 kapasite)
@@ -576,7 +597,7 @@ budapeste-video-ops-agent/
 │   ├── perception/              # detect · track · pose · zone · ppe · crowd · asr · audio  [Hasan]
 │   ├── evidence/                # graph · store · query                          [Hasan]
 │   ├── understanding/           # vlm_client · segment_analyzer · summarizer · grounding [Emre]
-│   ├── serving/                 # vllm_launcher · profiles · model_registry · cassettes  [Emre]
+│   ├── serving/                 # openai_compat_client · factory · profiles · cassettes  [Emre]
 │   ├── agent/                   # graph · nodes/ · tools/ · memory/ · prompts/ · policies/ [Alperen]
 │   ├── decision/                # risk_reasoner · action_planner · sop_rag · safety_guard [İbrahim]
 │   ├── mocks/                   # kurumsal araçlar + fault_injection             [İbrahim]
@@ -630,7 +651,7 @@ Uyum Kaptanı her faz sonunda işaretler.
 - [ ] Kısa, anlaşılır **Türkçe** özet
 - [ ] Operatöre aksiyon önerileri
 - [ ] **JSON** yapılandırılmış çıktı (şartname anahtarları birebir)
-- [ ] **Offline + yerel** çalışır, dış API/kapalı servis yok
+- [ ] Organizasyonun resmî vLLM altyapısı veya offline yerel/kaset fallback ile çalışır; ticari üçüncü taraf API yok
 - [ ] **vLLM** ile servisleme
 - [ ] Olayın **başlangıç / gelişim / sonuç** aşamaları ayırt edilir
 - [ ] Düşük seviye algı ↔ yüksek seviye çıkarım **köprüsü** (Kanıt Grafiği)
@@ -676,7 +697,7 @@ make demo SCENARIO=context_switch # diyalog ortasında konu/video değişimi
 make demo SCENARIO=tool_failure   # araç arızası → kurtarma davranışı
 ```
 
-**Eval (haftalık, Kaggle/GPU):**
+**Eval (haftalık, resmî inference hizmeti veya yerel GPU):**
 ```bash
 make eval          # altın set → tüm KPI'lar → eval/reports/YYYY-WW.md
 make ablation      # verifier / adaptive-sampling / RAG açık-kapalı karşılaştırması
