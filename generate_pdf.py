@@ -1,0 +1,724 @@
+import os
+import webbrowser
+
+# Markdown metnini aşağıdaki tırnakların arasına yapıştırın:
+md_text = """
+# TEKNOFEST 2026 — Yapay Zeka Dil Ajanları Yarışması (3. Senaryo) — Mimari & Yol Haritası
+
+## Context
+
+Ekip (Alperen, Hasan, Emre, İbrahim) TEKNOFEST 2026 "Yapay Zeka Dil Ajanları Yarışması" 3. Senaryo'ya
+katılıyor: **video tabanlı olay analizi ve operasyonel karar destek sistemi**. Sistem tamamen yerel
+çalışmalı, dış API kullanmamalı, vLLM benzeri yerel servisleme altyapısı kullanmalı, Türkçe özet +
+zaman damgalı olay listesi + risk değerlendirmesi + aksiyon önerileri üretmeli, çıktılar JSON olmalı.
+
+Repo şu an boş (`README.md`, Apache-2.0 `LICENSE`, `.gitignore`, şartname PDF'i). Bu plan; sıfırdan
+inşa edilecek sistemin mimarisini, teknoloji seçimlerini, fazlı yol haritasını ve 4 kişilik eşit iş
+bölümünü tanımlar.
+
+**Kısıtlar (kullanıcı yanıtları):**
+- Takvim belirsiz → yol haritası **faz bazlı**, her faza adam-gün tahmini konuldu.
+- Donanım: şu an **sadece CPU / Colab-Kaggle** → mimari "profil" tabanlı, geliştirme CPU'da yapılabilir
+  olmalı. H200 ileride gelirse aynı kod ölçeklenir.
+- Yetkinlik: ekip 4 alanı da kapsıyor (CV, LLM/agent, backend/MLOps, frontend) → temiz dikey bölünme.
+- Kapsam: **dengeli** → çekirdek sağlam, seçili farklılaştırıcılar; fine-tuning ve ses opsiyonel.
+
+---
+
+## 1. Şartnamenin Kod Çözümü — 6 Kritik Stratejik Bulgu
+
+Bunlar planın geri kalanının dayanağı. Her biri şartnamedeki *tam ifadeye* dayanıyor.
+
+### Bulgu 1 (EN ÖNEMLİSİ) — Değerlendirme rubriği bir **diyalog ajanı** rubriği, video pipeline rubriği değil
+
+Bölüm 7'deki kriterler kelimesi kelimesine şunları içeriyor:
+- "Mock fonksiyonların **ajanın araçları** olarak başarıyla kullanılması"
+- "agent, tools, memory, prompt engineering etkin kullanımı"
+- "**dinamik araç seçimi, bağlam yönetimi, çok adımlı karar zincirleri, hata işleme**"
+- "Ajanın **müşteri niyetini anlama** ve akıl yürütme yeteneği"
+- "**Diyalog sırasında inisiyatif alma ve doğru soruları sorma**"
+- "**Diyalogun doğal ve insansı bir akışta ilerlemesi**"
+
+Bölüm 6 da destekliyor: teslim edilecek kod "**agent, mock fonksiyonlar**, arayüz kodu, benchmark kodu";
+demo videosunda "**bağlam değişimi denemesi**" ve "**sesli etkileşim (varsa) veya metin tabanlı etkileşim**"
+gösterilmeli.
+
+> **Sonuç:** "Video yükle → JSON dök" yapan bir sistem, puanın %70'inin yaşadığı yerde (Teknik %35 +
+> Otonomi %20 + Fonksiyonellik'in tool kısmı) çakılır. Ürünümüz **operatörle Türkçe konuşan, araç
+> kullanan, çok adımlı akıl yürüten bir ajan** olmalı; video onun *kanıt kaynağı*. Bu, projedeki 1
+> numaralı tasarım kararı.
+
+### Bulgu 2 — "Statik, yalnızca kural tabanlı çözümler düşük puanlanacaktır" (madde, birebir)
+
+Risk seviyesi `if forklift_devrildi: risk="Yüksek"` ile hesaplanamaz. Risk ve aksiyon üretimi **model
+tabanlı akıl yürütme** olmalı. Biz yine de güvenlik için ince bir "safety clamp" koyacağız ama bunu
+*kural motoru* değil, **emniyet bariyeri** olarak konumlandırıp dokümante edeceğiz.
+
+### Bulgu 3 — Şartname bize mimariyi birebir söylüyor: **algı ↔ anlam köprüsü**
+
+> "Sistem, **düşük seviyeli algı (object detection vb.) ile yüksek seviyeli çıkarım (olay yorumlama)
+> arasında bir köprü kurabilmelidir.**"
+
+Bu, mimaride **adı konmuş bir bileşen** olmalı. Bizde bu → **Kanıt Grafiği (Evidence Graph)**. Mimari
+diyagramın merkezinde duracak. Bedava puan; çoğu takım bunu ayrı bir katman yapmaz.
+
+### Bulgu 4 — Ölçümleme/KPI zorunlu ve çoğu takımın zayıf noktası
+
+> "Katılımcılar kendi metriklerini tanımlamalıdır... Tanımlanan metrikler, demo ve raporlarda **açık
+> şekilde sunulmalıdır**."
+
+Gerçek bir eval harness + altın veri seti + **ablation tablosu** = ucuz ve çok görünür bir
+farklılaştırıcı. Jüri karşısında "şu bileşeni kapatınca kritik olay yakalama %94'ten %71'e düşüyor"
+demek, 10 slaytlık anlatımdan daha etkili.
+
+### Bulgu 5 — Performans ayrı bir değerlendirme ekseni
+
+"Video işleme süresi, model inference süresi, bellek ve donanım kullanımı, **yüksek hacimli veri altında
+sistem davranışı**". Yani yük testi ve RTF (real-time factor) sayıları raporlanmalı.
+
+### Bulgu 6 — Süreç/uyum tuzakları (puan kaybettirir, teknik değil)
+
+| Madde | Risk |
+|---|---|
+| "**en az haftalık** güncellemelerin sisteme yüklenmesi **zorunludur**" | Sessiz hafta = puan kaybı |
+| GitHub'da `BilisimVadisi2026` etiketi + **takım adı** + "Türkiye Açık Kaynak Platformu" etiketi | Unutulursa değerlendirmeye alınmama riski |
+| Repo'da (1) tam bağımlılık listesi (2) adım adım çalıştırma (3) **veri setinin herkese açık indirme linki** | Birebir madde; eksikse puan kaybı |
+| Apache-2.0 ile lisanslama zorunlu | ✅ mevcut — ama **AGPL bağımlılık koymayın** (bkz. §5) |
+| Turnitin + "önceden başlamış proje kabul edilmez" | Repo'nun ilk commit'i 2026-08-20 ✅. Yarışma penceresinden önceki kod parçası taşımayın. |
+| "Projenin bağımlı olduğu **ücretli hiçbir yazılım** kullanılamaz" + "3. taraflardan hizmet satın alınamaz" | **Colab Pro / paralı bulut satın almayın.** Kaggle ücretsiz katman güvenli. |
+| İki ayrı video gerekli: teslim için **≤10 dk demo videosu**, sunumda **1 dk demo videosu** + **4 dk sunum** | Ayrı ayrı üretilmeli |
+| Sunum **PDF ve PPTX** formatında + **tüm üyelerin görev tanımları** sunumda | Birebir madde |
+| Final **fizikî**: Bilişim Vadisi Kocaeli, son 24 saat | **Sahada internet/GPU garantisi yok → offline demo paketi şart** (bkz. §8 R5) |
+
+---
+
+## 2. Puan Haritası — Nereye Yatırım Yapılmalı
+
+| Kriter | Ağırlık | Bizde karşılığı | Yatırım önceliği |
+|---|---|---|---|
+| Fonksiyonellik & Senaryo Kapsamı | **%35** | Uçtan uca çalışan senaryolar + mock araçların ajan tarafından kullanımı + kararlılık | **P0** |
+| Teknik İmplementasyon & Mimari | **%35** | LangGraph ajan, 4 katmanlı bellek, dinamik araç seçimi, hata işleme, modülerlik | **P0** |
+| Otonomi & Zeka | **%20** | Reasoning, inisiyatif/soru sorma, bağlam değişimi, doğal Türkçe diyalog | **P0** |
+| Yenilikçilik & Yaratıcılık | **%10** | Ek senaryolar, kanıt-temelli açıklanabilirlik, sunum/dok kalitesi | P1 |
+
+**Kaba efor dağılımı önerisi:** %30 ajan çekirdeği, %20 algı+kanıt, %20 VLM anlama, %15 ürün yüzeyi,
+%15 eval + dokümantasyon + sunum.
+
+---
+
+## 3. Sistem Mimarisi
+
+**Sistem adı önerisi:** **GÖZCÜ** — *Görüntü Tabanlı Operasyonel Zekâ ve Karar Ünitesi*.
+(Alternatif: **NÖBETÇİ**.) Türkçe, akılda kalıcı, savunma sanayi jürisine uygun; sunumda ve
+dokümantasyonda tek marka olarak kullanılır.
+
+### 3.1 Katmanlı mimari
+
+```
+L0  ALIM & UYARLANABİLİR ÖRNEKLEME
+    demux (PyAV) → sahne kesit tespiti → hareket enerjisi + ses enerjisi haritası
+    → bütçe farkındalıklı anahtar-kare seçimi (olay yoğun yere çok, boş yere az kare)
+    ▸ "statik olmayan pipeline" iddiasının ilk somut kanıtı
+
+L1  DETERMİNİSTİK ALGI  (hepsi ajan aracı olarak da çağrılabilir)
+    kişi/nesne tespiti + takip · poz kestirimi (düşme/hareketsizlik)
+    bölge/ROI ihlali · KKD (baret/yelek) · kalabalık toplanması (DBSCAN)
+    Türkçe ASR (kelime zaman damgalı) · ses olayı etiketleme (çığlık, alarm, çarpma)
+
+L2  ★ KANIT GRAFİĞİ (EVIDENCE GRAPH) — "algı ↔ anlam köprüsü"
+    Zaman damgalı, tipli, güven skorlu olgular + varlık izleri (track) +
+    uzamsal/zamansal ilişkiler.  Tek doğruluk kaynağı.  LLM bağlamına DÖKÜLMEZ;
+    ajan bunu *araçlarla sorgular* → bağlam verimliliği + doğrulanabilirlik
+
+L3  ANLAMSAL KAVRAYIŞ (VLM, vLLM üzerinden)
+    segment analizi → hiyerarşik özetleme (segment→sahne→video)
+    kaba→ince zamansal temellendirme (candidate event → yüksek fps ile "yakınlaş")
+
+L4  ★ AJAN ÇEKİRDEĞİ (LangGraph)
+    Planner → Tool Router → Executor → Verifier/Critic → Replanner → Reporter
+    + 4 katmanlı bellek + SOP RAG + bağlam yönetimi + diyalog
+
+L5  KARAR & AKSİYON
+    model tabanlı risk akıl yürütme (+ ince emniyet bariyeri)
+    SOP'a dayandırılmış aksiyon planı · mock kurumsal araçlar · insan onayı (HITL)
+
+L6  YÜZEYLER
+    JSON sözleşmesi · REST + SSE (canlı ajan izi) · Operatör Konsolu · CLI · (Ses)
+
+L7  DEĞERLENDİRME & GÖZLEMLENEBİLİRLİK
+    KPI harness · ablation · trace · yük testi · maliyet/gecikme muhasebesi
+```
+
+### 3.2 Ajan grafiği (LangGraph düğümleri)
+
+| # | Düğüm | Görevi | Hangi rubrik maddesini vuruyor |
+|---|---|---|---|
+| 1 | `intake` | Video kaydı, ucuz ön geçiş (L0+L1), Kanıt Grafiği iskeleti | Fonksiyonellik |
+| 2 | `triage` | **LLM** kanıt yoğunluğuna bakıp analiz stratejisi seçer (hızlı tarama / derin analiz / hedefli) | "statik olmayan, bağlama göre farklı çıktı" |
+| 3 | `plan` | Hedef için araç planı üretir | Çok adımlı karar zinciri |
+| 4 | `route` | **Dinamik araç seçimi** | Birebir rubrik maddesi |
+| 5 | `execute` | Paralel araç çağrısı; timeout, retry, circuit breaker | **Hata işleme** |
+| 6 | `verify` | VLM iddialarını Kanıt Grafiği'ne karşı çapraz doğrular, `support_score` üretir | Açıklanabilirlik |
+| 7 | `reflect` | Destek düşük/boşluk var → yakınlaş, yeniden planla | Reasoning |
+| 8 | `ask_user` | **Belirsizlikte operatöre netleştirici soru sorar** | "inisiyatif alma ve doğru soruları sorma" |
+| 9 | `risk_assess` | Model tabanlı risk akıl yürütme + rubrik + emniyet bariyeri | Karar destek |
+| 10 | `recommend` | SOP'a dayandırılmış aksiyon planı (öncelik, sorumlu, süre) | Karar destek |
+| 11 | `act` | Mock araç yürütme; geri alınamaz aksiyonlarda onay ister | Mock entegrasyon + güvenlik |
+| 12 | `report` | Guided-JSON çıktı + Türkçe anlatı | Yapılandırılmış çıktı |
+| 13 | `remember` | Olayı epizodik belleğe yazar | Memory |
+
+### 3.3 Bellek — 4 katman (rubrikte "memory" ayrı madde)
+
+| Katman | İçerik | Teknoloji | Neden |
+|---|---|---|---|
+| **Çalışma belleği** | Aktif videonun Kanıt Grafiği | SQLite + in-proc index | LLM bağlamını şişirmeden sorgulanabilir olgular |
+| **Kısa vadeli** | Diyalog durumu, aktif plan, araç sonuçları | LangGraph checkpointer (SQLite) | Bağlam yönetimi, geri alma, yeniden başlatma |
+| **Epizodik** | Geçmiş olaylar (videolar arası) | Chroma/Qdrant (yerel) + BGE-M3 | "Bu bölgede bu ay 3. forklift olayı" → önleyici öneri |
+| **Semantik** | SOP / İSG prosedürleri / saha bilgisi | RAG: BGE-M3 + bge-reranker-v2-m3 | Aksiyonlar prosedüre dayanır, uydurulmaz |
+
+**Bağlam yönetimi stratejisi** (rubrik maddesi):
+kanıtı bağlama dökmek yerine araçla sorgula · diyalogda kayan pencere + yuvarlanan özet ·
+vLLM prefix caching (sabit video bağlamı prefix'i tüm turlarda yeniden kullanılır) ·
+**bağlam değişimi dedektörü**: konu/video değişince mevcut durumu snapshot'la, kapsamı değiştir,
+"önceki videoya dön" desteklensin.
+
+### 3.4 Veri sözleşmesi — şartname JSON'u ⊆ bizim şema
+
+Üst seviyede şartnamenin **birebir** anahtarları korunur (geriye dönük uyum, jüri gözünde net eşleşme),
+üzerine zenginleştirme eklenir:
+
+```jsonc
+{
+  // ── ŞARTNAME SÖZLEŞMESİ (birebir) ─────────────────────────
+  "summary": "Videoda forklift kazası ve yaralanma riski gözlenmiştir.",
+  "events": [ { "time": "00:15", "event": "Forklift devrildi" } ],
+  "risk": "Yüksek",
+  "actions": [ "Sağlık ekibini çağır", "Alanı güvenlik altına al" ],
+
+  // ── GÖZCÜ ZENGİNLEŞTİRMESİ ────────────────────────────────
+  "events_detail": [{
+    "id": "evt_001", "t_start": 15.2, "t_end": 18.9,
+    "type": "arac_devrilmesi", "severity": "kritik", "confidence": 0.88,
+    "actors": [{"track_id": 7, "class": "forklift"}],
+    "zone": "depo_A_kavsak",
+    "phase": "gelisim",              // baslangic | gelisim | sonuc
+    "evidence": [                     // ← AÇIKLANABİLİRLİK
+      {"source": "detector", "t": 15.2, "detail": "forklift bbox aspect flip", "conf": 0.91},
+      {"source": "audio",    "t": 15.4, "detail": "impact/crash", "conf": 0.76},
+      {"source": "vlm",      "t": 16.0, "detail": "devrilen araç ve savrulan yük", "conf": 0.85}
+    ],
+    "support_score": 0.87            // verifier'ın kanıt-destek skoru
+  }],
+  "risk_assessment": {
+    "level": "Yüksek", "score": 0.86,
+    "factors": [{"name": "yaralanma_olasiligi", "weight": 0.4, "value": 0.9}],
+    "rationale": "Devrilme sonrası 20. saniyede hareketsiz kişi tespiti...",
+    "uncertainty": "Kişinin bilinç durumu görüntüden doğrulanamadı."
+  },
+  "actions_detail": [{
+    "action": "Sağlık ekibini çağır", "priority": "P0", "owner": "saglik_birimi",
+    "deadline_sec": 60, "tool": "dispatch_medical_team",
+    "sop_ref": "ISG-PR-014 §4.2",     // ← SOP'a dayandırma
+    "status": "operator_onayi_bekliyor",
+    "rationale": "Hareketsiz kişi + yüksek enerjili çarpışma"
+  }],
+  "abstentions": [],                  // ← tespit edilemeyen/emin olunamayan şeyler
+  "metrics": { "rtf": 0.075, "e2e_latency_s": 41.3, "peak_vram_gb": 38.2,
+               "vlm_calls": 14, "tool_calls": 23, "cache_hit_rate": 0.62 }
+}
+```
+
+**Garanti mekanizması:** Pydantic v2 → JSON Schema → vLLM `guided_json` (xgrammar) → şema doğrulama →
+gerekirse onarım turu. Hedef KPI: **%100 geçerli JSON** (ölçülür ve raporlanır).
+
+### 3.5 Halüsinasyon karşıtı tasarım (bu senaryoda en büyük teknik risk)
+
+1. Her iddia `evidence[]` taşır; kanıtsız iddia rapora giremez.
+2. `verify` düğümü VLM iddialarını Kanıt Grafiği olgularıyla eşler; `support_score` eşiğin altındaysa
+   olay **"belirsiz"** işaretlenir veya operatöre sorulur — asla kesin dille yazılmaz.
+3. Desteklenmeyen olay için **aksiyon üretilmez**.
+4. **Çekimserlik (abstention) bir özelliktir:** olaysız/normal videoda sistem "kritik olay tespit
+   edilmedi" demeli. → **Demoya mutlaka koyun.** Çoğu takımın sistemi boş videoda kaza uydurur; bu
+   sahne jüri karşısında en güçlü anlardan biri olur.
+
+---
+
+## 4. Teknoloji Seçimleri (+ lisans hijyeni)
+
+**Lisans kuralı:** Repo Apache-2.0 ile yayınlanacağı için **AGPL bağımlılık kullanmayın**
+(Ultralytics YOLO AGPL-3.0'dır → kullanmayın). Non-commercial lisanslı model de kullanmayın
+(XTTS-v2 CPML, jina-embeddings-v3 CC-BY-NC). Aşağıdaki set temiz.
+
+| Katman | Seçim | Lisans | Not |
+|---|---|---|---|
+| Video I/O | PyAV / decord + ffmpeg | BSD/Apache/LGPL | |
+| Sahne kesiti | PySceneDetect (veya TransNetV2) | BSD-3 / MIT | |
+| Tespit | **RT-DETRv2** veya **D-FINE** (ONNX Runtime) | Apache-2.0 | YOLO'ya AGPL'siz alternatif |
+| Açık sözcük dağarcıklı tespit | OWLv2 / Grounding DINO | Apache-2.0 | "baretsiz kişi" gibi ad-hoc sorgular |
+| Takip | ByteTrack / OC-SORT | MIT | |
+| Poz / düşme | RTMPose (MMPose) veya ViTPose | Apache-2.0 | düşme + hareketsizlik |
+| ASR (TR) | faster-whisper (large-v3-turbo / small) | MIT | kelime zaman damgası |
+| Ses olayı | BEATs / AST (AudioSet) | MIT | çığlık, alarm, çarpma, cam kırılması |
+| **VLM (ana)** | **Qwen3-VL-8B / 32B-Instruct** | **Apache-2.0** | interleaved-MRoPE + **metin–zaman damgası hizalaması** (saniye seviyesi olay lokalizasyonu), uzun video, güçlü OCR, iyi Türkçe |
+| VLM (CPU/Colab dev) | Qwen3-VL-2B/4B AWQ, MiniCPM-V 4.5 int4, SmolVLM2-2.2B | Apache-2.0 | 16 GB T4'e sığar |
+| VLM (yedek/karşılaştırma) | InternVL3.5, GLM-4.5V, Keye-VL-1.5 | Apache/MIT | bake-off için |
+| Planner/judge (metin) | Qwen3-4B/8B (H200'de 30B-A3B MoE) | Apache-2.0 | hybrid thinking; hızlı router |
+| Servisleme | **vLLM** (OpenAI-uyumlu) | Apache-2.0 | şartname birebir istiyor |
+| Yapılandırılmış çıktı | vLLM `guided_json` + xgrammar + Pydantic v2 | Apache/MIT | |
+| Gömme (TR) | BGE-M3 | MIT | çok dilli, Türkçe iyi |
+| Yeniden sıralama | bge-reranker-v2-m3 | Apache-2.0 | |
+| Vektör DB | Chroma veya Qdrant (yerel) | Apache-2.0 | |
+| Ajan çerçevesi | **LangGraph** | MIT | durum makinesi + checkpointer + interrupt (HITL) + streaming |
+| Backend | FastAPI + SSE | MIT | canlı ajan izi akışı |
+| Frontend | React + Vite (+ Tailwind) | MIT | ekipte frontend var → Gradio'ya gerek yok |
+| Ses (opsiyonel) | faster-whisper (STT) + **Piper** `tr_TR` (TTS) | MIT | Piper Türkçe sesi var, lisans temiz |
+| Gözlemlenebilirlik | OpenTelemetry + yerel Jaeger/Grafana veya basit JSONL trace | Apache-2.0 | |
+
+**Neden LangGraph:** Rubrik "agent, tools, memory" diyor; LangGraph'ın checkpointer'ı belleği,
+`interrupt()` insan onayını, conditional edge'ler dinamik araç seçimini, subgraph'lar modülerliği
+*doğrudan* karşılıyor — ve jüriye anlatması kolay. Üzerine kendi Planner/Verifier düğümlerimizi
+yazarak "özgün yaklaşım" (Yenilikçilik %10) da elde ediyoruz.
+
+### 4.1 Donanım profilleri (CPU-only başlangıç için kritik)
+
+Tek kod tabanı, üç profil (`config/profiles/*.yaml`):
+
+| Profil | Nerede | VLM | Algı | Amaç |
+|---|---|---|---|---|
+| `cpu-dev` | Herkesin dizüstü | **FakeVLM (kaset replay)** veya Qwen3-VL-2B GGUF (llama.cpp) | ONNX Runtime CPU, düşük fps | 4 kişinin **GPU'suz tam hızda** çalışması |
+| `colab-t4` | Kaggle 2×T4 (haftada 30 GPU-saat ×4 hesap ≈ 120 saat, ücretsiz) | Qwen3-VL-4B/8B AWQ, `--dtype half` | ONNX GPU | Gerçek doğrulama, kaset kaydı |
+| `h200-prod` | Yarışma donanımı | Qwen3-VL-32B FP8 (veya 30B-A3B) + Qwen3-8B planner | TensorRT | Final performans sayıları |
+
+> **Bu projenin en önemli mühendislik kararı:** **Sözleşme-önce + kayıt/oynatma (record/replay).**
+> Faz 0'da tüm Pydantic şemaları dondurulur. Emre Kaggle'da gerçek VLM çıktılarını "kaset" olarak
+> kaydeder; Alperen, Hasan ve İbrahim bu kasetlerle **CPU'da, deterministik ve saniyeler içinde**
+> tüm ajan/UI/eval kodunu geliştirip test eder. GPU darboğazı 4 kişiyi değil 1 kişiyi bağlar.
+
+---
+
+## 5. SOTA Farklılaştırıcılar (başarıyı maksimize edecek şeyler)
+
+**Çekirdeğe dahil (dengeli kapsam):**
+
+1. **Kaba→ince zamansal temellendirme döngüsü.** Önce düşük fps ile tüm video taranır; aday kritik an
+   bulununca ajan *kendi kararıyla* o aralığı yüksek fps + yüksek çözünürlükle yeniden sorgular.
+   → Hem doğruluk hem hız kazancı; hem de "dinamik araç seçimi + çok adımlı karar zinciri"nin en net
+   demosu.
+2. **Uyarlanabilir kare bütçesi.** Hareket + ses enerjisine göre kare dağıtımı; SigLIP gömmeleriyle
+   MMR tabanlı çeşitlilik seçimi (aynı sahnenin 20 benzer karesini VLM'e gönderme).
+3. **Kanıt-temelli açıklanabilirlik + verifier.** (§3.5) — bu senaryonun en ayırt edici teknik iddiası.
+4. **Kasıtlı hata enjeksiyonu olan mock araçlar.** Her mock araç `timeout / 503 / rate_limit /
+   invalid_response / partial_success` üretebilir. Ajan: üstel geri çekilme → alternatif araç →
+   zarif bozulma → operatörü bilgilendirme. **Rubrikte "hata işleme" birebir yazıyor; en yüksek
+   getirili tek kalem.**
+5. **İnsan-döngüde (HITL) onay.** Geri alınamaz aksiyonlar (112 arama, sahayı kapatma) operatör onayı
+   ister. LangGraph `interrupt()` ile. Hem güvenlik hem "insansı diyalog" puanı.
+6. **Çekimserlik + yanlış-pozitif kontrolü.** Olaysız videoda uydurmama. Demoda gösterilecek.
+7. **Bağlam değişimi dayanıklılığı.** Diyalog ortasında konu/video değişimi; "az önceki forklifte
+   dönelim" gibi geri referanslar. Şartname demo videosunda bunu istiyor.
+8. **Epizodik hafıza / videolar arası trend.** "Bu vardiyada 3. KKD ihlali, hepsi B kapısında" →
+   *önleyici* öneri. Analizden karar desteğe geçişin en somut kanıtı.
+
+**Yenilikçilik (%10) için ek senaryolar — 2-3 tanesini seçin:**
+
+| Ek senaryo | Etki | Maliyet |
+|---|---|---|
+| **Vardiya raporu üretimi** (8 saatlik kayıttan operasyonel özet) | Yüksek — uzun video + ölçeklenebilirlik iddiasını kanıtlar | Orta |
+| **Çoklu kamera füzyonu** (aynı olayı 2 kameradan tek olayda birleştirme) | Yüksek — teknik derinlik | Orta-Yüksek |
+| **Canlı akış (RTSP) modu** — gerçek zamana yakın uyarı | Yüksek — "gerçek zamanlı senaryo" maddesi | Orta |
+| **SOP uyum denetimi** — İSG prosedürüne göre eksik/ihlal tespiti | Orta-Yüksek | Düşük (RAG zaten var) |
+| **Kök-neden analizi** (olay sonrası 5-neden zinciri) | Orta | Düşük |
+| **Adli kanıt paketi** — olay klibi + kareler + SHA-256 zinciri, kurcalanma-kanıtlı | Orta (savunma sanayi jürisine hitap eder) | Düşük |
+| **Prompt injection savunması** — sahnedeki yazıyla ("önceki talimatları yok say" tabelası) ajanı kandırma denemesine direnç | Orta (güvenlik bilinci jüriyi etkiler) | Düşük |
+| **Sesli operatör etkileşimi** (Whisper + Piper TR) | Orta — şartname demo maddesinde geçiyor | Orta |
+| **LoRA ince ayar** (Türkçe İSG rapor diliyle özetleme) | Orta | Yüksek — opsiyonel bırakıldı |
+
+> Not: Şartname **eğitimi/fine-tuning'i yasaklamıyor.** ("eğitim" kelimesi metinde hiç geçmiyor.)
+> Yasaklar: dış API, kapalı servis, bulut bağımlılığı, ücretli yazılım. Yani H200 gelirse LoRA
+> tamamen serbest.
+
+---
+
+## 6. En Çok Emek ve Zahmet İsteyecek Noktalar
+
+Buraya önden bakın; sürprizler burada çıkar.
+
+| # | Zorluk | Neden zor | Azaltım |
+|---|---|---|---|
+| 1 | **Altın eval seti anotasyonu** | Zamansal etiketleme yavaş; 40-60 klip × olay sınırları + risk + aksiyon ≈ **4-6 adam-gün** | 4 kişiye eşit böl (kişi başı 10-15 klip); anotasyon aracını Faz 1'de yaz; %20 örtüşmeli anotasyon → Cohen's kappa raporla (bilimsel ciddiyet puanı) |
+| 2 | **Zamansal temellendirme doğruluğu** | VLM'ler kesin saniye vermekte gerçekten zayıf | Qwen3-VL'in zaman-damgası hizalaması + karelere zaman damgası yakma (burn-in) + kaba→ince döngü + detektör olaylarıyla snap'leme |
+| 3 | **Türkçe prompt mühendisliği** | Tutarlı format, halüsinasyonsuz, operatör diline uygun çıktı çok iterasyon ister | Versiyonlanmış prompt kütüphanesi (`prompts/v1/*.jinja`) + her prompt için regresyon testi + LLM-as-judge ile A/B |
+| 4 | **Uzun video bağlam yönetimi** | 30+ dk videoda nedensellik kaybolmadan segment→bütün agregasyonu | Hiyerarşik map-reduce + Kanıt Grafiği'nin harici bellek olarak kullanılması + olay zinciri (event linking) |
+| 5 | **Verifier tasarımı** | VLM iddiası ↔ kanıt olgusu eşleşmesi bulanık bir problem | Hibrit: sözlük/kural + gömme benzerliği + küçük LLM yargıcı; eşikler eval ile kalibre |
+| 6 | **Gecikme / RTF < 1** | Çok kareli VLM çağrıları yavaş | Uyarlanabilir örnekleme + prefix caching + async batching + içerik-hash cache + FP8 |
+| 7 | **CPU'da geliştirme** | Ekibin GPU'su yok | Kaset/replay mimarisi (§4.1) — bu yüzden Faz 0'da sözleşmeler donuyor |
+| 8 | **"Kural tabanlı değil" ile "güvenli" gerilimi** | Model tabanlı risk bazen yanlış karar verir; ama sabit kural puan kaybettirir | Model karar verir; ince "emniyet bariyeri" sadece **alt sınır** koyar (ör. hareketsiz kişi asla "Düşük" olamaz) ve bu dokümanda *guardrail* olarak açıkça gerekçelendirilir |
+| 9 | **Fizikî finalde demo güvenilirliği** | Kocaeli'de internet/GPU garantisi yok | **Offline demo paketi** (bkz. §8 R5) |
+
+---
+
+## 7. Riskler ve Azaltımlar
+
+| # | Risk | Olasılık | Etki | Azaltım |
+|---|---|---|---|---|
+| R1 | Sistem "video→JSON" olarak algılanır, ajan puanı alınamaz | Yüksek | Kritik | Ürünü **diyalog ajanı** olarak konumla; her demo diyalogla başlasın; mimari diyagramda ajan merkezde |
+| R2 | GPU erişimi gecikir/H200 gelmez | Orta | Yüksek | 3 profil; `cpu-dev` ile tam işlevsel (küçük modelle) çalışır; Kaggle ücretsiz katman yedek |
+| R3 | VLM halüsinasyonu jüri demosunda yakalanır | Orta | Yüksek | Verifier + support_score + çekimserlik; demoda kasten "boş video" senaryosu göster |
+| R4 | AGPL/non-commercial lisans kirliliği | Orta | Yüksek | §4 tablosuna sadık kal; CI'da `pip-licenses` kontrolü; `docs/licenses.md` |
+| R5 | Fizikî finalde demo çöker | Orta | Kritik | **Offline demo paketi:** önceden hesaplanmış kanıt+kaset cache'i + küçük yerel model + 1 dk yedek video + tam offline `make demo`; internetsiz prova |
+| R6 | Haftalık GitHub güncellemesi kaçar | Orta | Orta | Her cuma "haftalık ilerleme" commit'i + `docs/weekly/` günlüğü; takvim hatırlatıcısı |
+| R7 | Entegrasyon Faz 3'te patlar | Orta | Yüksek | **Faz 1'de uçtan uca ince dikey dilim** zorunlu; sonrası hep çalışan sistem üzerine ekleme |
+| R8 | Eval seti veri lisansı sorunlu / indirme linki verilemez | Orta | Orta | Ağırlıklı olarak **kendi çektiğimiz sahneli klipler** (tam telif bizde, Apache/CC-BY ile yayınlanır) + kamuya açık setler için sadece **anotasyonları** yayınla + indirme scripti |
+| R9 | Kapsam şişer, hiçbiri bitmez | Yüksek | Yüksek | Faz kapıları (§8) — bir faz "yeşil" olmadan sonrakine geçilmez; ek senaryolar sadece Faz 3 sonunda açılır |
+
+---
+
+## 8. Yol Haritası — Faz Bazlı
+
+Takvim belirsiz olduğu için **adam-gün** cinsinden. Ekip 4 kişi. Toplam ≈ **148 adam-gün**.
+Yarı zamanlı (kişi başı ~3 gün/hafta) → ~12 hafta. Tam zamanlı yoğun → ~5 hafta.
+Her fazın sonunda **kapı (gate)** var; geçilmeden sonraki faza geçilmez.
+
+### Faz 0 — Temel Atma (≈12 adam-gün, ~3 gün)
+
+- Repo iskeleti, `uv`/`pip-tools` bağımlılık yönetimi, `Makefile`, pre-commit (ruff+mypy), CI
+- **`contracts/` — tüm Pydantic şemaları dondurulur** (Evidence, Event, Risk, Action, ToolCall, Report)
+- Profil sistemi (`cpu-dev` / `colab-t4` / `h200-prod`)
+- `FakeVLM` + kaset (record/replay) altyapısı
+- 8-10 örnek klip toplanır (kısa, çeşitli: kaza / normal / gece / kalabalık)
+- Mimari diyagram v1 (Mermaid + PNG), ADR-001..005
+- GitHub: `BilisimVadisi2026` + takım adı + TAKP etiketleri, Apache-2.0 doğrulaması
+
+**KAPI 0:** Her geliştirici `make test` ile CPU'da yeşil alıyor; şemalar imzalı.
+
+### Faz 1 — İnce Dikey Dilim (≈24 adam-gün, ~1.5 hafta)
+
+Amaç: **30 saniyelik bir video uçtan uca çalışsın.** Kalite değil, *bağlantı*.
+
+- L0: decode + sabit örnekleme (uyarlanabilir henüz yok)
+- L1: sadece kişi/nesne tespiti + takip
+- L2: Kanıt Grafiği v1 (yazma + sorgu API'si)
+- L3: tek segment VLM analizi + guided JSON
+- L4: LangGraph minimal grafik (plan → execute → report), 3 araç
+- L5: 3 mock araç (`dispatch_medical_team`, `notify_security`, `create_incident_report`)
+- L6: FastAPI `/analyze` + `/chat` (SSE) + çok basit UI + CLI
+- L7: 5 klipte ilk KPI ölçümü
+
+**KAPI 1:** `make demo` → video yükle, ajanla Türkçe konuş, şartname JSON'unu üret. **Bu tarihten
+sonra sistem her zaman çalışır durumda kalır.**
+
+### Faz 2 — Derinlik (≈44 adam-gün, ~2.5 hafta)
+
+- L0: uyarlanabilir örnekleme + sahne kesiti + hareket/ses enerji haritası
+- L1: poz/düşme, hareketsizlik, bölge ihlali, KKD, kalabalık, ASR (TR), ses olayları
+- L2: Kanıt Grafiği tam şema + ilişkiler + güven kalibrasyonu
+- L3: hiyerarşik özetleme (segment→sahne→video), Türkçe prompt kütüphanesi v2, model bake-off
+- L4: 4 katmanlı bellek, SOP RAG, verifier düğümü, dinamik router, retry/circuit breaker
+- L5: **10-14 mock kurumsal araç + hata enjeksiyon motoru**, model tabanlı risk, HITL onay
+- L6: Operatör Konsolu (zaman çizelgesi + olay işaretleri + kanıt görüntüleyici + **canlı ajan izi** +
+  aksiyon kuyruğu)
+- L7: **altın eval seti (40-60 klip) anotasyonu** + eval harness v1 + KPI panosu
+
+**KAPI 2:** Tüm şartname "Temel Beklentiler" maddeleri karşılanıyor; eval seti üzerinde ilk tam rapor.
+
+### Faz 3 — Zekâ & Sağlamlık (≈32 adam-gün, ~2 hafta)
+
+- Kaba→ince temellendirme döngüsü
+- `ask_user` — inisiyatifli netleştirici soru sorma politikası
+- Bağlam değişimi tespiti ve yönetimi
+- Çekimserlik + yanlış-pozitif kontrolü (boş video senaryosu)
+- **Kaos testi:** rastgele araç hatası enjeksiyonu × N koşu → *hata kurtarma oranı* KPI'ı
+- Karşıt (adversarial) vakalar: gece, tıkanma, kamera sarsıntısı, sessiz video, bozuk dosya, 30+ dk
+  video, sahnedeki metinle prompt injection
+- Epizodik hafıza / videolar arası trend
+- **Seçilen 2-3 ek senaryo** (§5)
+- **Ablation çalışması** (verifier açık/kapalı, uyarlanabilir/sabit örnekleme, RAG açık/kapalı)
+
+**KAPI 3:** Kaos testinde hata kurtarma ≥ %85; ablation tablosu hazır.
+
+### Faz 4 — Performans & Cila (≈24 adam-gün, ~1.5 hafta)
+
+- H200/GPU profil ayarı: FP8, prefix caching, chunked prefill, async batching, ONNX/TensorRT algı
+- Yük testi (eşzamanlılık 1/4/16), RTF, TTFT, tok/s, tepe VRAM raporu
+- `docs/`: mimari, senaryolar, mock fonksiyonlar, kurulum, **karşılaşılan zorluklar ve çözümler**,
+  **ölçümleme sonuçları**, **ölçekleme ihtiyaçları** (hepsi şartname maddeleri)
+- **≤10 dk demo videosu** (teslim) + **1 dk demo videosu** (sunum)
+- Sunum: **PDF + PPTX**, tüm üyelerin görev tanımları dahil
+- Kod kalitesi geçişi: tip kapsamı, test kapsamı ≥ %70, ölü kod temizliği
+
+**KAPI 4:** Tüm teslim kalemleri hazır ve repo'da.
+
+### Faz 5 — Final Hazırlığı (≈12 adam-gün, ~1 hafta)
+
+- **Offline demo paketi**: internetsiz + GPU'suz çalışan önceden-cache'li demo modu
+- 4 dk sunum provası ×5 (herkes 1 dakika)
+- Jüri soru-cevap hazırlığı (tahmini 30 soru + cevap kartları)
+- Yedek planlar: laptop bozulursa, video oynamazsa, model yüklenmezse
+- Bilişim Vadisi Kocaeli lojistiği
+
+---
+
+## 9. İş Bölümü — 4 Kişi, Eşit Yük
+
+**İlke:** Herkes bir **dikey dilimin tek sahibi** (uçtan uca sorumluluk, karar yetkisi), artı eşit
+paylaşılan ortak yük. Kimse "yardımcı" değil; herkesin demoda gösterebileceği bir ürünü var.
+
+| Kişi | Sahip olduğu dikey | Paketler | Neden bu kişi |
+|---|---|---|---|
+| **Alperen** | **L4 — Ajan Çekirdeği** | `agent/` (graph, nodes, tools registry, memory×4, prompts, policies) | Repo sahibi/kaptan; sistemin kalbi ve rubriğin %35'i burada; CPU'da tam geliştirilebilir |
+| **Hasan** | **L0-L2 — Algı & Kanıt** | `ingest/`, `perception/`, `evidence/` | Klasik CV; ONNX ile CPU'da çalışabilir; Kanıt Grafiği'nin tek sahibi |
+| **Emre** | **L3 + Servisleme + Performans** | `understanding/`, `serving/`, `eval/perf/` | **Ekibin atanmış GPU sahibi** (Kaggle). Model bake-off, vLLM ayarı, Türkçe prompt kütüphanesi, **kaset üretimi** (diğer 3 kişiyi besler) |
+| **İbrahim** | **L5-L6 — Karar/Aksiyon + Ürün** | `decision/`, `mocks/`, `api/`, `ui/` | Frontend + backend; mock araç paketi + hata enjeksiyonu + operatör konsolu + HITL akışı |
+
+### Ortak yük — her fazda herkes için eşit (~%25 kapasite)
+
+| Sorumluluk | Detay |
+|---|---|
+| Kendi modülünün dokümantasyonu | `docs/` altında kendi bölümü |
+| Kendi modülünün testleri | ≥ %70 kapsam, CI yeşil |
+| **Altın eval setinin 1/4'ü** | Kişi başı 10-15 klip anotasyonu (+%20 örtüşme → kappa) |
+| Kod incelemesi | Her hafta 1 takım arkadaşının PR'ı (döngüsel: A→H→E→İ→A) |
+| Haftalık GitHub güncellemesi | Cuma commit + `docs/weekly/YYYY-WW.md` |
+| Sunumun 1 dakikası | 4 dk sunum = 4×1 dk; herkes kendi diliminin sahibi |
+
+### Dönüşümlü roller (yükü dengeler, tek noktaya bağımlılığı kırar)
+
+| Rol | Faz 0-1 | Faz 2 | Faz 3 | Faz 4-5 |
+|---|---|---|---|---|
+| **Sürüm Kaptanı** (entegrasyon, release, `make demo` çalışır tutma) | Alperen | Hasan | Emre | İbrahim |
+| **Eval Kaptanı** (harness, KPI panosu, ablation koşuları) | Emre | İbrahim | Alperen | Hasan |
+| **Uyum Kaptanı** (§11 kontrol listesi, lisanslar, haftalık push, teslim kalemleri) | İbrahim | Alperen | Hasan | Emre |
+
+### L7 (Eval) neden kimseye tek atanmadı
+
+Eval, herkesin kendi katmanının kalite kapısı. Harness'ı Faz 1'de **Emre** kurar, sonra
+**Eval Kaptanı** rolü döner. Altın set anotasyonu 4'e bölünür. Böylece kimse "sadece test yazan kişi"
+olmaz ve herkes kendi KPI'ından sorumlu olur.
+
+### Faz bazında kişi başı adam-gün (denge kontrolü)
+
+| Faz | Alperen | Hasan | Emre | İbrahim | Toplam |
+|---|---|---|---|---|---|
+| Faz 0 | 3 | 3 | 3 | 3 | 12 |
+| Faz 1 | 6 | 6 | 6 | 6 | 24 |
+| Faz 2 | 11 | 11 | 11 | 11 | 44 |
+| Faz 3 | 8 | 8 | 8 | 8 | 32 |
+| Faz 4 | 6 | 6 | 6 | 6 | 24 |
+| Faz 5 | 3 | 3 | 3 | 3 | 12 |
+| **Toplam** | **37** | **37** | **37** | **37** | **148** |
+
+### Arayüz sözleşmeleri (paralel çalışmayı mümkün kılan şey)
+
+Faz 0'da dondurulan 4 sınır — bunlar değişmediği sürece 4 kişi birbirini beklemez:
+
+1. `EvidenceGraph` sorgu API'si → Hasan üretir, Alperen tüketir
+2. `VLMClient` protokolü + kaset formatı → Emre üretir, Alperen/İbrahim tüketir
+3. `Tool` protokolü (ad, JSON şema, hata modelleri) → Alperen tanımlar, İbrahim implement eder
+4. `AnalysisReport` şeması + SSE olay formatı → İbrahim tüketir, Alperen üretir
+
+---
+
+## 10. Repo Yapısı
+
+```
+budapeste-video-ops-agent/
+├── README.md                    # TR+EN · kurulum · çalıştırma · veri seti linki · BilisimVadisi2026
+├── LICENSE                      # Apache-2.0  ✅ mevcut
+├── Makefile                     # setup / test / demo / eval / bench / offline-demo
+├── pyproject.toml · uv.lock
+├── docs/
+│   ├── architecture.md · diagrams/
+│   ├── scenarios.md · mock_functions.md · prompts.md
+│   ├── evaluation.md            # KPI tanımları + sonuçlar + ablation  (ŞARTNAME MADDESİ)
+│   ├── scaling.md               # ölçekleme ihtiyaçları                 (ŞARTNAME MADDESİ)
+│   ├── challenges.md            # karşılaşılan zorluklar ve çözümler    (ŞARTNAME MADDESİ)
+│   ├── licenses.md · decisions/ADR-*.md · weekly/
+├── src/gozcu/
+│   ├── contracts/               # Pydantic şemaları — TEK GERÇEK KAYNAK (Faz 0'da donar)
+│   ├── ingest/                  # decode · shot_detect · adaptive_sampler       [Hasan]
+│   ├── perception/              # detect · track · pose · zone · ppe · crowd · asr · audio  [Hasan]
+│   ├── evidence/                # graph · store · query                          [Hasan]
+│   ├── understanding/           # vlm_client · segment_analyzer · summarizer · grounding [Emre]
+│   ├── serving/                 # vllm_launcher · profiles · model_registry · cassettes  [Emre]
+│   ├── agent/                   # graph · nodes/ · tools/ · memory/ · prompts/ · policies/ [Alperen]
+│   ├── decision/                # risk_reasoner · action_planner · sop_rag · safety_guard [İbrahim]
+│   ├── mocks/                   # kurumsal araçlar + fault_injection             [İbrahim]
+│   ├── api/                     # FastAPI · SSE · routes                          [İbrahim]
+│   └── obs/                     # trace · metrics · timing
+├── ui/                          # React + Vite operatör konsolu                   [İbrahim]
+├── eval/
+│   ├── datasets/                # download_*.py + annotations/ (bizim, Apache ile yayınlanır)
+│   ├── metrics/ · runners/ · ablations/ · load/ · reports/
+├── config/profiles/{cpu-dev,colab-t4,h200-prod}.yaml
+├── scripts/                     # setup · download_models · record_cassettes · run_demo
+├── tests/
+├── docker/ · compose.yml
+└── .github/workflows/ci.yml
+```
+
+---
+
+## 11. KPI Tanımları (şartname "kendi metriklerinizi tanımlayın" maddesi)
+
+| Kategori | Metrik | Hedef |
+|---|---|---|
+| **Olay tespiti** | tIoU@0.3 / @0.5 üzerinden P/R/F1 | F1 ≥ 0.70 @ tIoU 0.3 |
+| | Ortalama mutlak zaman damgası hatası | ≤ 2.0 s |
+| | **Kritik Olay Yakalama Oranı (CER)** — güvenlik-kritik alt küme recall'ü | **≥ 0.95** (kaçırmak, yanlış alarmdan pahalı) |
+| | Yanlış alarm oranı (olaysız videolarda) | ≤ 0.10 |
+| **Özet kalitesi** | Yerel LLM-yargıç (1-5): doğruluk, kapsam, özlük, Türkçe akıcılık | ≥ 4.0 |
+| | **Halüsinasyon oranı** — Kanıt Grafiği'nce desteklenmeyen iddia yüzdesi | ≤ 0.05 |
+| | Altın olay kapsama oranı | ≥ 0.80 |
+| **Risk** | Sıralı doğruluk + emniyet-ağırlıklı maliyet matrisi (küçümseme ağır cezalı) | ≥ 0.80 |
+| **Aksiyon** | SOP-türevli altın kümeye karşı P/R | ≥ 0.75 |
+| | Zararlı/alakasız aksiyon oranı | **0.00** |
+| **Ajan** | Araç seçim doğruluğu · sorgu başına araç çağrısı · görev başarım oranı | ≥ 0.85 / ≤ 6 / ≥ 0.90 |
+| | **Hata kurtarma oranı** (enjekte edilen arızalardan) | ≥ 0.85 |
+| | Çözüme kadar tur sayısı | ≤ 4 |
+| **Çıktı** | Geçerli JSON oranı | **1.00** |
+| **Performans** | **RTF** = işleme süresi / video süresi | ≤ 0.20 (H200), raporlanır (CPU) |
+| | Uçtan uca gecikme · TTFT · tok/s · tepe VRAM | raporlanır |
+| | Eşzamanlılık 1/4/16 altında throughput ve p95 | raporlanır |
+
+---
+
+## 12. Şartname Uyum Kontrol Listesi
+
+Uyum Kaptanı her faz sonunda işaretler.
+
+**Teknik gereksinimler**
+- [ ] Video girdisi alır, içerik analiz eder
+- [ ] Olay / kişi / riskli durum tespiti
+- [ ] Kritik anlar zaman bilgisi ile
+- [ ] Kısa, anlaşılır **Türkçe** özet
+- [ ] Operatöre aksiyon önerileri
+- [ ] **JSON** yapılandırılmış çıktı (şartname anahtarları birebir)
+- [ ] **Offline + yerel** çalışır, dış API/kapalı servis yok
+- [ ] **vLLM** ile servisleme
+- [ ] Olayın **başlangıç / gelişim / sonuç** aşamaları ayırt edilir
+- [ ] Düşük seviye algı ↔ yüksek seviye çıkarım **köprüsü** (Kanıt Grafiği)
+- [ ] Model tabanlı, statik-olmayan pipeline
+- [ ] Açıklanabilir çıktı
+- [ ] Açık kaynak teknolojiler, tekrar üretilebilir, dokümante
+
+**Teslim kalemleri**
+- [ ] Çalışan kod: agent + **mock fonksiyonlar** + arayüz + **benchmark kodu**
+- [ ] Kurulum adımları (gereksinimler, çevre değişkenleri)
+- [ ] **≤10 dk demo videosu** (bağlam değişimi denemesi dahil; metin/ses etkileşimi net)
+- [ ] Dokümantasyon: mimari özeti + **diyagram**, agentic framework & LLM'ler, senaryolar & mock
+      fonksiyonlar, adım adım çalıştırma, **karşılaşılan zorluklar ve çözümler**, ek özellikler,
+      **ölçümleme sonuçları**, **ölçekleme ihtiyaçları**
+- [ ] Sunum: **PDF + PPTX**, tüm üyelerin **görev tanımları**
+- [ ] **1 dk demo videosu** + **4 dk sunum** (final)
+
+**Süreç/uyum**
+- [ ] GitHub açık, **Apache-2.0**
+- [ ] `BilisimVadisi2026` etiketi + **takım adı** + "Türkiye Açık Kaynak Platformu" etiketi
+- [ ] **Haftalık** güncelleme
+- [ ] Repo'da: tam bağımlılık listesi · adım adım çalıştırma · **veri setinin herkese açık linki**
+- [ ] Ücretli yazılım/hizmet bağımlılığı yok · AGPL/non-commercial bağımlılık yok
+- [ ] TEKNOFEST duyuru grubuna en az 1 üye kayıtlı (İletişim maddesi)
+
+---
+
+## 13. Doğrulama — Nasıl Test Edeceğiz
+
+**Her commit (CI):**
+```bash
+make lint          # ruff + mypy
+make test          # pytest, cpu-dev profili, FakeVLM kasetleriyle — GPU gerektirmez
+make schema-check  # contracts/ şemaları geriye dönük uyumlu mu
+make license-check # pip-licenses → AGPL/NC yasak listesi
+```
+
+**Uçtan uca (yerel, CPU):**
+```bash
+make demo                         # örnek klip → ajan diyaloğu → JSON + UI
+make demo SCENARIO=empty_video    # çekimserlik testi: kaza UYDURMAMALI
+make demo SCENARIO=context_switch # diyalog ortasında konu/video değişimi
+make demo SCENARIO=tool_failure   # araç arızası → kurtarma davranışı
+```
+
+**Eval (haftalık, Kaggle/GPU):**
+```bash
+make eval          # altın set → tüm KPI'lar → eval/reports/YYYY-WW.md
+make ablation      # verifier / adaptive-sampling / RAG açık-kapalı karşılaştırması
+make bench         # RTF, TTFT, tok/s, VRAM
+make load          # eşzamanlılık 1/4/16 yük testi
+```
+
+**Final öncesi (zorunlu prova):**
+```bash
+make offline-demo  # ağ kablosu ÇIKARILMIŞ halde, sadece yerel cache + küçük model ile
+```
+Bu komut internetsiz ve GPU'suz bir dizüstünde çalışmadan Kocaeli'ye gidilmez.
+
+---
+
+## 14. Hemen Sonraki 3 Adım (onay verilirse)
+
+1. **Faz 0 iskeleti**: `pyproject.toml`, `Makefile`, CI, `contracts/` Pydantic şemaları, profil
+   sistemi, `FakeVLM` + kaset altyapısı, mimari diyagram v1.
+2. **GitHub uyum ayarı**: repo topics (`BilisimVadisi2026`, takım adı, `turkiye-acik-kaynak-platformu`),
+   README v1 (kurulum + veri seti bölümü iskeleti), `docs/weekly/` başlatma.
+3. **4 dikey için başlangıç issue'ları**: her kişiye Faz 1 görevleri, arayüz sözleşmeleri PR'ı
+   (§9'daki 4 sınır) ilk merge edilen şey olur.
+
+"""
+
+html_page = """<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>TEKNOFEST 2026 - Yol Haritası ve Mimari</title>
+<style>
+    @media print {
+        @page { margin: 15mm; size: A4; }
+        body { font-size: 10pt; line-height: 1.45; }
+        h1, h2, h3 { page-break-after: avoid; }
+        table, pre, blockquote { page-break-inside: avoid; }
+        .no-print { display: none !important; }
+    }
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        line-height: 1.6;
+        color: #1f2328;
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 30px;
+        background-color: #ffffff;
+    }
+    h1 { border-bottom: 2px solid #d0d7de; padding-bottom: 0.3em; font-size: 1.8em; color: #0969da; }
+    h2 { border-bottom: 1px solid #d0d7de; padding-bottom: 0.3em; margin-top: 28px; font-size: 1.35em; color: #1f2328; }
+    h3 { margin-top: 20px; font-size: 1.15em; color: #24292f; }
+    table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 0.95em; }
+    th, td { border: 1px solid #d0d7de; padding: 7px 12px; text-align: left; }
+    th { background-color: #f6f8fa; font-weight: 600; }
+    tr:nth-child(even) { background-color: #fcfdfe; }
+    blockquote { padding: 4px 14px; color: #57606a; border-left: 0.25em solid #0969da; background: #f6f8fa; margin: 14px 0; }
+    pre { background-color: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; padding: 14px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; line-height: 1.45; }
+    code { background-color: #eff1f3; padding: 0.2em 0.4em; border-radius: 4px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 88%; }
+    pre code { background: none; padding: 0; }
+    hr { border: 0; height: 1px; background: #d0d7de; margin: 24px 0; }
+    ul, ol { padding-left: 24px; }
+    li { margin-bottom: 4px; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+<div id="content"></div>
+<script id="raw-md" type="text/plain">""" + md_text + """</script>
+<script>
+    const raw = document.getElementById('raw-md').textContent;
+    document.getElementById('content').innerHTML = marked.parse(raw);
+</script>
+</body>
+</html>"""
+
+output_file = os.path.abspath("proje_dokumani.html")
+with open(output_file, "w", encoding="utf-8") as f:
+    f.write(html_page)
+
+print(f"Oluşturuldu: {output_file}")
+print("Tarayıcı açılıyor. Açıldığında 'Ctrl + P' basıp 'PDF Olarak Kaydet' diyebilirsiniz.")
+webbrowser.open(f"file://{output_file}")

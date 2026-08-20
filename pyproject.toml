@@ -1,0 +1,112 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gozcu"
+version = "0.1.0"
+description = "GÖZCÜ — Görüntü Tabanlı Operasyonel Zeka ve Karar Ünitesi (TEKNOFEST 2026, 3. Senaryo)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [
+  { name = "Alperen" }, { name = "Hasan" }, { name = "Emre" }, { name = "İbrahim" },
+]
+keywords = ["teknofest", "bilisimvadisi2026", "video-understanding", "agent", "vllm", "turkish-nlp"]
+
+# ── ÇEKİRDEK: her geliştiricinin CPU'sunda kurulabilir olmalı (GPU gerektirmez) ──
+dependencies = [
+  "pydantic>=2.9",
+  "pydantic-settings>=2.5",
+  "pyyaml>=6.0",
+  "typer>=0.12",
+  "rich>=13.7",
+  "orjson>=3.10",
+]
+
+[project.optional-dependencies]
+# Katman sahipleri kendi ekstrasını kurar; CI sadece [dev] kurar.
+perception = [          # Hasan  — L0-L2
+  "av>=13.0",
+  "opencv-python-headless>=4.10",
+  "numpy>=1.26",
+  "onnxruntime>=1.19",
+  "scenedetect>=0.6.4",
+  "scipy>=1.14",
+  "scikit-learn>=1.5",
+  "faster-whisper>=1.0",
+]
+understanding = [       # Emre   — L3 + serving
+  "openai>=1.50",       # SADECE vLLM'in OpenAI-uyumlu YEREL endpoint'i için (dış servis yok)
+  "transformers>=4.45",
+  "pillow>=10.4",
+  "httpx>=0.27",
+]
+agent = [               # Alperen — L4
+  "langgraph>=0.2.40",
+  "langgraph-checkpoint-sqlite>=2.0",
+  "jinja2>=3.1",
+  "chromadb>=0.5.5",
+]
+product = [             # İbrahim — L5-L6
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.31",
+  "sse-starlette>=2.1",
+  "python-multipart>=0.0.12",
+]
+dev = [
+  "pytest>=8.3",
+  "pytest-cov>=5.0",
+  "pytest-asyncio>=0.24",
+  "ruff>=0.7",
+  "mypy>=1.11",
+  "pip-licenses>=5.0",
+]
+
+[project.scripts]
+gozcu = "gozcu.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gozcu"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q --strict-markers"
+asyncio_mode = "auto"
+markers = [
+  "gpu: GPU gerektirir (CI'da atlanır)",
+  "slow: uzun süren test",
+]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "RUF"]
+ignore = [
+  "E501",   # satır uzunluğu — formatter zaten hallediyor
+  # Bu proje Türkçe yazılır: docstring, yorum ve operatöre görünen metinler Türkçedir.
+  # RUF001-003 her "ı", "İ", "ş" harfinde "ambiguous unicode" uyarısı verir.
+  "RUF001", # dizgede belirsiz karakter
+  "RUF002", # docstring'de belirsiz karakter
+  "RUF003", # yorumda belirsiz karakter
+]
+
+[tool.mypy]
+python_version = "3.11"
+mypy_path = "src"
+packages = ["gozcu"]
+plugins = ["pydantic.mypy"]
+ignore_missing_imports = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+# pydantic'in @computed_field dekoratörü @property üzerine gelir; mypy bunu
+# "prop-decorator" olarak işaretler. Desteklenen ve kasıtlı bir pydantic v2
+# örüntüsüdür (AnalysisReport.events / .actions türetilmiş alanları).
+disable_error_code = ["prop-decorator"]
+
+[tool.coverage.run]
+source = ["src/gozcu"]

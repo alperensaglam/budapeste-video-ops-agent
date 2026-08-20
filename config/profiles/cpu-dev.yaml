@@ -1,0 +1,60 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# cpu-dev — HERKESİN dizüstünde çalışan geliştirme profili.
+#
+# Bu profil GPU GEREKTİRMEZ. VLM çağrıları kasetten oynatılır, algı ONNX Runtime
+# CPU üzerinde düşük fps ile koşar. Alperen, Hasan ve İbrahim günlük işlerini bu
+# profilde yapar; Emre kasetleri colab-t4 profilinde üretip repo'ya yükler.
+#
+# CI de bu profili kullanır → testler GPU'suz, deterministik ve saniyeler içinde.
+# ─────────────────────────────────────────────────────────────────────────────
+name: cpu-dev
+description: "CPU-only geliştirme. VLM kasetten oynatılır; GPU gerekmez."
+
+cassette_dir: data/cassettes
+cassette_mode: replay
+
+vlm:
+  backend: cassette
+  model: cassette
+  guided_json: false          # kaset zaten şemaya uygun kayıtlı
+  max_concurrency: 1
+  request_timeout_s: 10.0
+
+planner:
+  backend: cassette
+  model: cassette
+
+sampling:
+  base_fps: 0.5               # CPU'da düşük tut
+  max_frames_per_segment: 4
+  max_frames_total: 24
+  zoom_fps: 2.0
+  segment_seconds: 10.0
+  adaptive: true
+
+perception:
+  device: cpu
+  detector: rtdetrv2_r18      # Apache-2.0 (Ultralytics/AGPL DEĞİL)
+  detector_conf: 0.35
+  enable_pose: true
+  enable_asr: true
+  asr_model: small
+  asr_compute_type: int8
+  enable_audio_events: true
+  max_video_seconds: 60.0     # geliştirmeyi hızlı tutmak için kısa kes
+
+agent:
+  max_turns: 12
+  max_tool_calls_per_turn: 6
+  enable_verifier: true
+  support_threshold: 0.5
+  enable_zoom_loop: true
+  max_zoom_iterations: 1
+  enable_clarifying_questions: true
+  enable_episodic_memory: true
+  enable_sop_rag: true
+  require_confirmation_for_irreversible: true
+  tool_retry_max: 2
+
+faults:
+  enabled: false

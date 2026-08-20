@@ -1,0 +1,70 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# colab-t4 — Kaggle/Colab ÜCRETSİZ katman (2x Tesla T4, 16 GB).
+#
+# Emre'nin ana profili. İki iş yapar:
+#   1. Gerçek VLM ile doğrulama koşuları,
+#   2. Ekibin geri kalanı için KASET üretimi (cassette_mode: record).
+#
+# T4 = Turing (sm75): bfloat16 YOK → dtype: half zorunlu. AWQ nicelleştirme ile
+# 8B model 16 GB'a rahat sığar.
+#
+# UYARI: Colab Pro / paralı bulut SATIN ALMAYIN — şartname "projenin bağımlı
+# olduğu ücretli hiçbir yazılım kullanılamaz" diyor. Ücretsiz katman güvenlidir.
+# ─────────────────────────────────────────────────────────────────────────────
+name: colab-t4
+description: "Kaggle/Colab ücretsiz T4. Gerçek VLM doğrulaması + kaset üretimi."
+
+cassette_dir: data/cassettes
+cassette_mode: record         # koşarken kaseti diske yaz → ekip CPU'da kullanır
+
+vlm:
+  backend: vllm
+  model: Qwen/Qwen3-VL-8B-Instruct-AWQ
+  base_url: http://localhost:8000/v1
+  dtype: half                 # T4'te bfloat16 desteklenmez
+  max_model_len: 16384
+  guided_json: true
+  enable_prefix_caching: true
+  max_concurrency: 2
+  request_timeout_s: 180.0
+
+planner:
+  backend: vllm
+  model: Qwen/Qwen3-4B-Instruct-AWQ
+  base_url: http://localhost:8001/v1
+  max_tokens: 1024
+
+sampling:
+  base_fps: 1.0
+  max_frames_per_segment: 8
+  max_frames_total: 48
+  zoom_fps: 4.0
+  segment_seconds: 10.0
+  adaptive: true
+
+perception:
+  device: cuda
+  detector: rtdetrv2_r50
+  detector_conf: 0.35
+  enable_pose: true
+  enable_asr: true
+  asr_model: large-v3-turbo
+  asr_compute_type: float16
+  enable_audio_events: true
+  max_video_seconds: 600.0
+
+agent:
+  max_turns: 16
+  max_tool_calls_per_turn: 8
+  enable_verifier: true
+  support_threshold: 0.5
+  enable_zoom_loop: true
+  max_zoom_iterations: 2
+  enable_clarifying_questions: true
+  enable_episodic_memory: true
+  enable_sop_rag: true
+  require_confirmation_for_irreversible: true
+  tool_retry_max: 2
+
+faults:
+  enabled: false

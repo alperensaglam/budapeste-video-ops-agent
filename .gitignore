@@ -216,3 +216,48 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ─────────────────────────── GÖZCÜ ───────────────────────────
+# Model ağırlıkları — repoya girmez, scripts/download_models.py ile indirilir
+models/
+*.safetensors
+*.gguf
+*.onnx
+*.pt
+*.pth
+
+# Ham video ve üretilmiş kareler (büyük). Örnek klipler ayrıca yayınlanır.
+data/videos/
+data/frames/
+data/runs/
+*.mp4
+*.avi
+*.mkv
+*.mov
+!docs/**/*.mp4
+
+# Kasetler METİNDİR ve repoya GİRER (ekibin CPU'da çalışmasını sağlar).
+# İzin listesi:
+!data/cassettes/
+!data/cassettes/*.jsonl
+
+# Örnek klipler izinli
+!data/samples/
+!data/samples/**
+
+# Çalışma zamanı çıktıları
+eval/reports/*.html
+eval/reports/*.csv
+!eval/reports/.gitkeep
+.gozcu_cache/
+*.sqlite
+*.sqlite3
+*.db
+
+# Visual Studio
+.vs/
+
+# Yerel ortam
+.venv/
+.env
+.env.local

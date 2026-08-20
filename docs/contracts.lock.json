@@ -1,0 +1,2593 @@
+{
+  "AnalysisReport": {
+    "$defs": {
+      "Abstention": {
+        "additionalProperties": false,
+        "description": "Sistemin BİLEREK karar vermediği nokta.\n\nÇekimserlik bir özelliktir, eksiklik değil. Şartname \"açıklanabilir çıktı\" istiyor;\nneyi bilmediğini söyleyen bir sistem, her şeyi bilir gibi davranandan daha güvenilir.\nDemoda \"olaysız video\" senaryosunda bu alan yıldız oyuncudur.",
+        "properties": {
+          "reason": {
+            "description": "Neden belirlenemedi — Türkçe",
+            "title": "Reason",
+            "type": "string"
+          },
+          "suggested_followup": {
+            "default": "",
+            "description": "Operatörün ne yapması önerilir (ör. 2 numaralı kamerayı iste)",
+            "title": "Suggested Followup",
+            "type": "string"
+          },
+          "t_end": {
+            "anyOf": [
+              {
+                "description": "Video başından itibaren saniye",
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "T End"
+          },
+          "t_start": {
+            "anyOf": [
+              {
+                "description": "Video başından itibaren saniye",
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "T Start"
+          },
+          "topic": {
+            "description": "Neyin belirlenemediği",
+            "title": "Topic",
+            "type": "string"
+          }
+        },
+        "required": [
+          "topic",
+          "reason"
+        ],
+        "title": "Abstention",
+        "type": "object"
+      },
+      "ActionPriority": {
+        "enum": [
+          "P0",
+          "P1",
+          "P2",
+          "P3"
+        ],
+        "title": "ActionPriority",
+        "type": "string"
+      },
+      "ActionStatus": {
+        "enum": [
+          "önerildi",
+          "operatör_onayı_bekliyor",
+          "onaylandı",
+          "reddedildi",
+          "yürütülüyor",
+          "tamamlandı",
+          "başarısız"
+        ],
+        "title": "ActionStatus",
+        "type": "string"
+      },
+      "AnalysisDepth": {
+        "description": "`triage` düğümünün LLM ile seçtiği strateji — 'statik olmayan pipeline' kanıtı.",
+        "enum": [
+          "hizli_tarama",
+          "standart",
+          "derin",
+          "hedefli"
+        ],
+        "title": "AnalysisDepth",
+        "type": "string"
+      },
+      "DetectedEvent": {
+        "additionalProperties": false,
+        "description": "Zaman damgalı, gerekçeli, kanıta bağlı olay.",
+        "properties": {
+          "actors": {
+            "description": "Örn. track_id + class çiftleri",
+            "items": {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ]
+              },
+              "type": "object"
+            },
+            "title": "Actors",
+            "type": "array"
+          },
+          "caused_by": {
+            "description": "Önceki olay id'leri",
+            "items": {
+              "type": "string"
+            },
+            "title": "Caused By",
+            "type": "array"
+          },
+          "confidence": {
+            "description": "Güven skoru [0,1]",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "evidence": {
+            "description": "Bu olayı destekleyen kanıtlar",
+            "items": {
+              "$ref": "#/$defs/EvidenceRef"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "evidence_ids": {
+            "description": "Kanıt Grafiği atom kimlikleri (verifier kullanır)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "id": {
+            "pattern": "^evt_\\d{3,}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "description": "Operatöre gösterilen kısa Türkçe metin",
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "phase": {
+            "$ref": "#/$defs/EventPhase",
+            "default": "gelişim"
+          },
+          "severity": {
+            "$ref": "#/$defs/Severity"
+          },
+          "support_score": {
+            "default": 0.0,
+            "description": "Verifier'in hesapladığı kanıt-destek skoru. Eşiğin altındaysa olay belirsiz işaretlenir ve aksiyon üretilmez.",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Support Score",
+            "type": "number"
+          },
+          "t_end": {
+            "description": "Video başından itibaren saniye",
+            "minimum": 0.0,
+            "title": "T End",
+            "type": "number"
+          },
+          "t_start": {
+            "description": "Video başından itibaren saniye",
+            "minimum": 0.0,
+            "title": "T Start",
+            "type": "number"
+          },
+          "type": {
+            "description": "snake_case olay tipi: arac_devrilmesi, dusme, hareketsiz_kisi, kkd_ihlali, yetkisiz_giris, kalabalik_toplanmasi, yangin_duman, kavga",
+            "minLength": 1,
+            "title": "Type",
+            "type": "string"
+          },
+          "verified": {
+            "default": false,
+            "description": "Verifier düğümünden geçti mi",
+            "title": "Verified",
+            "type": "boolean"
+          },
+          "zone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Zone"
+          }
+        },
+        "required": [
+          "id",
+          "t_start",
+          "t_end",
+          "type",
+          "label",
+          "severity",
+          "confidence"
+        ],
+        "title": "DetectedEvent",
+        "type": "object"
+      },
+      "EventPhase": {
+        "description": "Şartname: 'olayların başlangıç, gelişim ve sonuç süreçlerini ayırt edebilmelidir'.",
+        "enum": [
+          "başlangıç",
+          "gelişim",
+          "sonuç"
+        ],
+        "title": "EventPhase",
+        "type": "string"
+      },
+      "EvidenceRef": {
+        "additionalProperties": false,
+        "description": "Rapora gömülen, insan tarafından okunabilir kanıt atıfı.\n\nŞartname: \"Sistem çıktıları mümkün olduğunca açıklanabilir olmalıdır.\"\nBu tip o açıklanabilirliğin somut taşıyıcısıdır: jüri bir iddiayı görüp\n\"bunu nereden biliyorsun?\" dediğinde cevap burada.",
+        "properties": {
+          "conf": {
+            "description": "Güven skoru [0,1]",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Conf",
+            "type": "number"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "evidence_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Kanıt Grafiği'ndeki atom",
+            "title": "Evidence Id"
+          },
+          "source": {
+            "$ref": "#/$defs/EvidenceSource"
+          },
+          "t": {
+            "description": "Video başından itibaren saniye",
+            "minimum": 0.0,
+            "title": "T",
+            "type": "number"
+          }
+        },
+        "required": [
+          "source",
+          "t",
+          "detail",
+          "conf"
+        ],
+        "title": "EvidenceRef",
+        "type": "object"
+      },
+      "EvidenceSource": {
+        "description": "Bir olgunun nereden geldiği. Açıklanabilirliğin temel taşı.\n\n``VLM`` dışındakiler DETERMİNİSTİK kaynaklardır; verifier düğümü VLM iddialarını\nyalnızca deterministik kaynaklara karşı doğrular.",
+        "enum": [
+          "detector",
+          "tracker",
+          "pose",
+          "zone",
+          "audio",
+          "asr",
+          "motion",
+          "vlm",
+          "operator",
+          "memory"
+        ],
+        "title": "EvidenceSource",
+        "type": "string"
+      },
+      "RecommendedAction": {
+        "additionalProperties": false,
+        "description": "Operatöre sunulan, gerekçeli ve yürütülebilir aksiyon.",
+        "properties": {
+          "action": {
+            "description": "Türkçe emir kipi, örn. Sağlık ekibini çağır",
+            "minLength": 1,
+            "title": "Action",
+            "type": "string"
+          },
+          "deadline_sec": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Hedef müdahale süresi",
+            "title": "Deadline Sec"
+          },
+          "id": {
+            "pattern": "^act_\\d{3,}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "owner": {
+            "description": "saglik_birimi, guvenlik, vardiya_amiri, bakim, isg",
+            "title": "Owner",
+            "type": "string"
+          },
+          "priority": {
+            "$ref": "#/$defs/ActionPriority"
+          },
+          "rationale": {
+            "default": "",
+            "description": "Neden bu aksiyon — Türkçe",
+            "title": "Rationale",
+            "type": "string"
+          },
+          "requires_confirmation": {
+            "default": false,
+            "description": "Geri alınamaz aksiyonlar (112 arama, saha kapatma) True olmalı. LangGraph interrupt() ile operatör onayı beklenir.",
+            "title": "Requires Confirmation",
+            "type": "boolean"
+          },
+          "sop_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Dayandığı prosedür maddesi, örn. ISG-PR-014 madde 4.2",
+            "title": "Sop Ref"
+          },
+          "status": {
+            "$ref": "#/$defs/ActionStatus",
+            "default": "önerildi"
+          },
+          "tool": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Bu aksiyonu yürütecek mock aracın adı (varsa)",
+            "title": "Tool"
+          },
+          "tool_args": {
+            "additionalProperties": true,
+            "title": "Tool Args",
+            "type": "object"
+          },
+          "triggering_event_ids": {
+            "description": "Bu aksiyonu doğuran olay(lar) — BOŞ OLAMAZ prod'da",
+            "items": {
+              "type": "string"
+            },
+            "title": "Triggering Event Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "priority",
+          "owner"
+        ],
+        "title": "RecommendedAction",
+        "type": "object"
+      },
+      "RiskAssessment": {
+        "additionalProperties": false,
+        "description": "Video geneli risk değerlendirmesi. LLM üretir, emniyet bariyeri denetler.",
+        "properties": {
+          "driving_event_ids": {
+            "description": "Bu seviyeyi belirleyen olaylar",
+            "items": {
+              "type": "string"
+            },
+            "title": "Driving Event Ids",
+            "type": "array"
+          },
+          "factors": {
+            "items": {
+              "$ref": "#/$defs/RiskFactor"
+            },
+            "title": "Factors",
+            "type": "array"
+          },
+          "guard_applied": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Uygulanan bariyer kuralının adı",
+            "title": "Guard Applied"
+          },
+          "level": {
+            "$ref": "#/$defs/RiskLevel"
+          },
+          "model_level": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/RiskLevel"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Bariyer ÖNCESİ modelin verdiği seviye (şeffaflık izi)"
+          },
+          "rationale": {
+            "description": "Türkçe gerekçe — operatörün okuyacağı metin",
+            "title": "Rationale",
+            "type": "string"
+          },
+          "score": {
+            "description": "Sürekli risk skoru [0,1]",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Score",
+            "type": "number"
+          },
+          "uncertainty": {
+            "default": "",
+            "description": "Neyin doğrulanamadığı. Boş bırakmak yerine dürüst olun.",
+            "title": "Uncertainty",
+            "type": "string"
+          }
+        },
+        "required": [
+          "level",
+          "score",
+          "rationale"
+        ],
+        "title": "RiskAssessment",
+        "type": "object"
+      },
+      "RiskFactor": {
+        "additionalProperties": false,
+        "description": "Risk skorunu oluşturan tekil etken — açıklanabilirlik için ayrıştırılmıştır.",
+        "properties": {
+          "name": {
+            "description": "yaralanma_olasiligi, maruziyet, siddet, mudahale_gecikmesi",
+            "title": "Name",
+            "type": "string"
+          },
+          "rationale": {
+            "default": "",
+            "title": "Rationale",
+            "type": "string"
+          },
+          "value": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Value",
+            "type": "number"
+          },
+          "weight": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Weight",
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "weight",
+          "value"
+        ],
+        "title": "RiskFactor",
+        "type": "object"
+      },
+      "RiskLevel": {
+        "description": "Şartnamedeki ``\"risk\": \"Yüksek\"`` alanının izinli değerleri.\n\nSıralıdır; karşılaştırma için :func:`risk_rank` kullanın.",
+        "enum": [
+          "Yok",
+          "Düşük",
+          "Orta",
+          "Yüksek",
+          "Kritik"
+        ],
+        "title": "RiskLevel",
+        "type": "string"
+      },
+      "RunMetrics": {
+        "additionalProperties": false,
+        "description": "Performans ve maliyet muhasebesi.\n\nŞartname, Bölüm 4: \"Video işleme süresi, model inference süresi, bellek ve donanım\nkullanımı ... önemli değerlendirme kriterleri arasındadır.\"\nBu alan HER raporda döner ve demoda ekranda canlı görünür.",
+        "properties": {
+          "agent_s": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "title": "Agent S",
+            "type": "number"
+          },
+          "agent_turns": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Agent Turns",
+            "type": "integer"
+          },
+          "cache_hit_rate": {
+            "default": 0.0,
+            "description": "Güven skoru [0,1]",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Cache Hit Rate",
+            "type": "number"
+          },
+          "completion_tokens": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Completion Tokens",
+            "type": "integer"
+          },
+          "e2e_latency_s": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "title": "E2E Latency S",
+            "type": "number"
+          },
+          "frames_sampled": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Frames Sampled",
+            "type": "integer"
+          },
+          "ingest_s": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "title": "Ingest S",
+            "type": "number"
+          },
+          "model_name": {
+            "default": "",
+            "title": "Model Name",
+            "type": "string"
+          },
+          "peak_vram_gb": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Peak Vram Gb"
+          },
+          "perception_s": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "title": "Perception S",
+            "type": "number"
+          },
+          "profile": {
+            "default": "cpu-dev",
+            "description": "Hangi donanım profilinde koştu",
+            "title": "Profile",
+            "type": "string"
+          },
+          "prompt_tokens": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Prompt Tokens",
+            "type": "integer"
+          },
+          "tool_calls": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Tool Calls",
+            "type": "integer"
+          },
+          "video_duration_s": {
+            "default": 0.0,
+            "description": "Video başından itibaren saniye",
+            "minimum": 0.0,
+            "title": "Video Duration S",
+            "type": "number"
+          },
+          "vlm_calls": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Vlm Calls",
+            "type": "integer"
+          },
+          "vlm_s": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "title": "Vlm S",
+            "type": "number"
+          }
+        },
+        "title": "RunMetrics",
+        "type": "object"
+      },
+      "Severity": {
+        "description": "Tekil olayın ciddiyeti (video geneli riskten AYRI).",
+        "enum": [
+          "bilgi",
+          "düşük",
+          "orta",
+          "yüksek",
+          "kritik"
+        ],
+        "title": "Severity",
+        "type": "string"
+      }
+    },
+    "additionalProperties": false,
+    "description": "Sistemin nihai çıktısı. Şartname sözleşmesi + GÖZCÜ zenginleştirmesi.",
+    "properties": {
+      "abstentions": {
+        "items": {
+          "$ref": "#/$defs/Abstention"
+        },
+        "title": "Abstentions",
+        "type": "array"
+      },
+      "actions_detail": {
+        "items": {
+          "$ref": "#/$defs/RecommendedAction"
+        },
+        "title": "Actions Detail",
+        "type": "array"
+      },
+      "analysis_depth": {
+        "$ref": "#/$defs/AnalysisDepth",
+        "default": "standart"
+      },
+      "events_detail": {
+        "items": {
+          "$ref": "#/$defs/DetectedEvent"
+        },
+        "title": "Events Detail",
+        "type": "array"
+      },
+      "metrics": {
+        "$ref": "#/$defs/RunMetrics"
+      },
+      "open_questions": {
+        "description": "Ajanın operatöre sormak istediği netleştirici sorular. Rubrikteki 'doğru soruları sorma' maddesinin somut çıktısı.",
+        "items": {
+          "type": "string"
+        },
+        "title": "Open Questions",
+        "type": "array"
+      },
+      "risk": {
+        "$ref": "#/$defs/RiskLevel",
+        "description": "Şartnamedeki risk alanı: Yüksek / Orta / Düşük / ..."
+      },
+      "risk_assessment": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/RiskAssessment"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "schema_version": {
+        "default": "1.0.0",
+        "description": "Sözleşme sürümü — kırıcı değişimde artar",
+        "title": "Schema Version",
+        "type": "string"
+      },
+      "summary": {
+        "description": "Kısa, anlaşılır, gereksiz detaydan arındırılmış Türkçe özet. Operatörün hızlı karar almasını destekleyecek şekilde yapılandırılmış.",
+        "minLength": 1,
+        "title": "Summary",
+        "type": "string"
+      },
+      "timeline_note": {
+        "default": "",
+        "description": "Olay akışının nedensel anlatımı (başlangıç-gelişim-sonuç)",
+        "title": "Timeline Note",
+        "type": "string"
+      },
+      "video_id": {
+        "title": "Video Id",
+        "type": "string"
+      }
+    },
+    "required": [
+      "video_id",
+      "summary",
+      "risk"
+    ],
+    "title": "AnalysisReport",
+    "type": "object"
+  },
+  "CassetteEntry": {
+    "$defs": {
+      "VLMResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "finish_reason": {
+            "default": "stop",
+            "title": "Finish Reason",
+            "type": "string"
+          },
+          "from_cache": {
+            "default": false,
+            "description": "Kasetten mi geldi",
+            "title": "From Cache",
+            "type": "boolean"
+          },
+          "model": {
+            "default": "",
+            "title": "Model",
+            "type": "string"
+          },
+          "repair_attempts": {
+            "default": 0,
+            "description": "JSON onarım turu sayısı — 0 olması hedeftir",
+            "minimum": 0,
+            "title": "Repair Attempts",
+            "type": "integer"
+          },
+          "schema_valid": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "json_schema istendiyse doğrulama sonucu",
+            "title": "Schema Valid"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/$defs/VLMUsage"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "VLMResponse",
+        "type": "object"
+      },
+      "VLMUsage": {
+        "additionalProperties": false,
+        "properties": {
+          "completion_tokens": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Completion Tokens",
+            "type": "integer"
+          },
+          "latency_ms": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "title": "Latency Ms",
+            "type": "number"
+          },
+          "prompt_tokens": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Prompt Tokens",
+            "type": "integer"
+          },
+          "ttft_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Time to first token",
+            "title": "Ttft Ms"
+          }
+        },
+        "title": "VLMUsage",
+        "type": "object"
+      }
+    },
+    "additionalProperties": false,
+    "description": "Diske yazılan tek kayıt. ``data/cassettes/<name>.jsonl`` içinde satır başına bir tane.",
+    "properties": {
+      "key": {
+        "description": "VLMRequest.cache_key()",
+        "title": "Key",
+        "type": "string"
+      },
+      "model": {
+        "default": "",
+        "title": "Model",
+        "type": "string"
+      },
+      "n_frames": {
+        "default": 0,
+        "minimum": 0,
+        "title": "N Frames",
+        "type": "integer"
+      },
+      "prompt_id": {
+        "default": "",
+        "title": "Prompt Id",
+        "type": "string"
+      },
+      "recorded_at": {
+        "default": "",
+        "description": "ISO-8601 zaman damgası",
+        "title": "Recorded At",
+        "type": "string"
+      },
+      "recorded_by": {
+        "default": "",
+        "description": "Kaseti üreten kişi/ortam (izlenebilirlik)",
+        "title": "Recorded By",
+        "type": "string"
+      },
+      "request_preview": {
+        "default": "",
+        "description": "İnsan gözüyle bakmak için ilk mesajın başı",
+        "maxLength": 400,
+        "title": "Request Preview",
+        "type": "string"
+      },
+      "response": {
+        "$ref": "#/$defs/VLMResponse"
+      }
+    },
+    "required": [
+      "key",
+      "response"
+    ],
+    "title": "CassetteEntry",
+    "type": "object"
+  },
+  "DetectedEvent": {
+    "$defs": {
+      "EventPhase": {
+        "description": "Şartname: 'olayların başlangıç, gelişim ve sonuç süreçlerini ayırt edebilmelidir'.",
+        "enum": [
+          "başlangıç",
+          "gelişim",
+          "sonuç"
+        ],
+        "title": "EventPhase",
+        "type": "string"
+      },
+      "EvidenceRef": {
+        "additionalProperties": false,
+        "description": "Rapora gömülen, insan tarafından okunabilir kanıt atıfı.\n\nŞartname: \"Sistem çıktıları mümkün olduğunca açıklanabilir olmalıdır.\"\nBu tip o açıklanabilirliğin somut taşıyıcısıdır: jüri bir iddiayı görüp\n\"bunu nereden biliyorsun?\" dediğinde cevap burada.",
+        "properties": {
+          "conf": {
+            "description": "Güven skoru [0,1]",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Conf",
+            "type": "number"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "evidence_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Kanıt Grafiği'ndeki atom",
+            "title": "Evidence Id"
+          },
+          "source": {
+            "$ref": "#/$defs/EvidenceSource"
+          },
+          "t": {
+            "description": "Video başından itibaren saniye",
+            "minimum": 0.0,
+            "title": "T",
+            "type": "number"
+          }
+        },
+        "required": [
+          "source",
+          "t",
+          "detail",
+          "conf"
+        ],
+        "title": "EvidenceRef",
+        "type": "object"
+      },
+      "EvidenceSource": {
+        "description": "Bir olgunun nereden geldiği. Açıklanabilirliğin temel taşı.\n\n``VLM`` dışındakiler DETERMİNİSTİK kaynaklardır; verifier düğümü VLM iddialarını\nyalnızca deterministik kaynaklara karşı doğrular.",
+        "enum": [
+          "detector",
+          "tracker",
+          "pose",
+          "zone",
+          "audio",
+          "asr",
+          "motion",
+          "vlm",
+          "operator",
+          "memory"
+        ],
+        "title": "EvidenceSource",
+        "type": "string"
+      },
+      "Severity": {
+        "description": "Tekil olayın ciddiyeti (video geneli riskten AYRI).",
+        "enum": [
+          "bilgi",
+          "düşük",
+          "orta",
+          "yüksek",
+          "kritik"
+        ],
+        "title": "Severity",
+        "type": "string"
+      }
+    },
+    "additionalProperties": false,
+    "description": "Zaman damgalı, gerekçeli, kanıta bağlı olay.",
+    "properties": {
+      "actors": {
+        "description": "Örn. track_id + class çiftleri",
+        "items": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ]
+          },
+          "type": "object"
+        },
+        "title": "Actors",
+        "type": "array"
+      },
+      "caused_by": {
+        "description": "Önceki olay id'leri",
+        "items": {
+          "type": "string"
+        },
+        "title": "Caused By",
+        "type": "array"
+      },
+      "confidence": {
+        "description": "Güven skoru [0,1]",
+        "maximum": 1.0,
+        "minimum": 0.0,
+        "title": "Confidence",
+        "type": "number"
+      },
+      "evidence": {
+        "description": "Bu olayı destekleyen kanıtlar",
+        "items": {
+          "$ref": "#/$defs/EvidenceRef"
+        },
+        "title": "Evidence",
+        "type": "array"
+      },
+      "evidence_ids": {
+        "description": "Kanıt Grafiği atom kimlikleri (verifier kullanır)",
+        "items": {
+          "type": "string"
+        },
+        "title": "Evidence Ids",
+        "type": "array"
+      },
+      "id": {
+        "pattern": "^evt_\\d{3,}$",
+        "title": "Id",
+        "type": "string"
+      },
+      "label": {
+        "description": "Operatöre gösterilen kısa Türkçe metin",
+        "minLength": 1,
+        "title": "Label",
+        "type": "string"
+      },
+      "phase": {
+        "$ref": "#/$defs/EventPhase",
+        "default": "gelişim"
+      },
+      "severity": {
+        "$ref": "#/$defs/Severity"
+      },
+      "support_score": {
+        "default": 0.0,
+        "description": "Verifier'in hesapladığı kanıt-destek skoru. Eşiğin altındaysa olay belirsiz işaretlenir ve aksiyon üretilmez.",
+        "maximum": 1.0,
+        "minimum": 0.0,
+        "title": "Support Score",
+        "type": "number"
+      },
+      "t_end": {
+        "description": "Video başından itibaren saniye",
+        "minimum": 0.0,
+        "title": "T End",
+        "type": "number"
+      },
+      "t_start": {
+        "description": "Video başından itibaren saniye",
+        "minimum": 0.0,
+        "title": "T Start",
+        "type": "number"
+      },
+      "type": {
+        "description": "snake_case olay tipi: arac_devrilmesi, dusme, hareketsiz_kisi, kkd_ihlali, yetkisiz_giris, kalabalik_toplanmasi, yangin_duman, kavga",
+        "minLength": 1,
+        "title": "Type",
+        "type": "string"
+      },
+      "verified": {
+        "default": false,
+        "description": "Verifier düğümünden geçti mi",
+        "title": "Verified",
+        "type": "boolean"
+      },
+      "zone": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Zone"
+      }
+    },
+    "required": [
+      "id",
+      "t_start",
+      "t_end",
+      "type",
+      "label",
+      "severity",
+      "confidence"
+    ],
+    "title": "DetectedEvent",
+    "type": "object"
+  },
+  "EvidenceGraphStats": {
+    "additionalProperties": false,
+    "description": "`triage` düğümünün analiz derinliğini seçmek için baktığı özet.\n\nBu istatistikler LLM'e verilir; LLM 'bu videoda ne kadar iş var?' kararını buna\nbakarak verir → statik olmayan pipeline.",
+    "properties": {
+      "activity_profile": {
+        "items": {
+          "type": "number"
+        },
+        "title": "Activity Profile",
+        "type": "array"
+      },
+      "by_kind": {
+        "additionalProperties": {
+          "type": "integer"
+        },
+        "title": "By Kind",
+        "type": "object"
+      },
+      "by_source": {
+        "additionalProperties": {
+          "type": "integer"
+        },
+        "title": "By Source",
+        "type": "object"
+      },
+      "duration_s": {
+        "description": "Video başından itibaren saniye",
+        "minimum": 0.0,
+        "title": "Duration S",
+        "type": "number"
+      },
+      "has_audio": {
+        "default": true,
+        "title": "Has Audio",
+        "type": "boolean"
+      },
+      "n_items": {
+        "minimum": 0,
+        "title": "N Items",
+        "type": "integer"
+      },
+      "n_relations": {
+        "default": 0,
+        "minimum": 0,
+        "title": "N Relations",
+        "type": "integer"
+      },
+      "n_tracks": {
+        "minimum": 0,
+        "title": "N Tracks",
+        "type": "integer"
+      },
+      "peak_activity_windows": {
+        "description": "En yoğun (t_start, t_end) aralıkları, azalan sırada",
+        "items": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "type": "array"
+        },
+        "title": "Peak Activity Windows",
+        "type": "array"
+      },
+      "video_id": {
+        "title": "Video Id",
+        "type": "string"
+      }
+    },
+    "required": [
+      "video_id",
+      "duration_s",
+      "n_items",
+      "n_tracks"
+    ],
+    "title": "EvidenceGraphStats",
+    "type": "object"
+  },
+  "EvidenceItem": {
+    "$defs": {
+      "BoundingBox": {
+        "additionalProperties": false,
+        "description": "Normalize edilmiş kutu [0,1] — çözünürlükten bağımsız.",
+        "properties": {
+          "x1": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "X1",
+            "type": "number"
+          },
+          "x2": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "X2",
+            "type": "number"
+          },
+          "y1": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Y1",
+            "type": "number"
+          },
+          "y2": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Y2",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x1",
+          "y1",
+          "x2",
+          "y2"
+        ],
+        "title": "BoundingBox",
+        "type": "object"
+      },
+      "EvidenceSource": {
+        "description": "Bir olgunun nereden geldiği. Açıklanabilirliğin temel taşı.\n\n``VLM`` dışındakiler DETERMİNİSTİK kaynaklardır; verifier düğümü VLM iddialarını\nyalnızca deterministik kaynaklara karşı doğrular.",
+        "enum": [
+          "detector",
+          "tracker",
+          "pose",
+          "zone",
+          "audio",
+          "asr",
+          "motion",
+          "vlm",
+          "operator",
+          "memory"
+        ],
+        "title": "EvidenceSource",
+        "type": "string"
+      }
+    },
+    "additionalProperties": false,
+    "description": "Kanıt Grafiği'nin atomu: tek bir zaman damgalı, kaynaklı gözlem.\n\nÖrnek::\n\n    EvidenceItem(\n        id=\"ev_0042\", t=15.2, source=EvidenceSource.DETECTOR,\n        kind=\"object_detected\", confidence=0.91,\n        subject=\"forklift\", track_id=7,\n        bbox=BoundingBox(x1=.3, y1=.4, x2=.7, y2=.9),\n        detail=\"forklift bbox en/boy oranı 0.5 → 1.4 (devrilme sezgisi)\",\n    )",
+    "properties": {
+      "attrs": {
+        "additionalProperties": true,
+        "description": "Kaynağa özgü ek alanlar (şemasız kaçış kapısı)",
+        "title": "Attrs",
+        "type": "object"
+      },
+      "bbox": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/BoundingBox"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "confidence": {
+        "description": "Güven skoru [0,1]",
+        "maximum": 1.0,
+        "minimum": 0.0,
+        "title": "Confidence",
+        "type": "number"
+      },
+      "detail": {
+        "default": "",
+        "description": "Türkçe, insan-okur açıklama",
+        "title": "Detail",
+        "type": "string"
+      },
+      "id": {
+        "description": "Kararlı kimlik: ev_0001",
+        "pattern": "^ev_\\d{4,}$",
+        "title": "Id",
+        "type": "string"
+      },
+      "kind": {
+        "description": "Olgu tipi, snake_case (ör. object_detected, fall_detected, zone_violation, speech_segment, audio_event, no_motion)",
+        "minLength": 1,
+        "title": "Kind",
+        "type": "string"
+      },
+      "source": {
+        "$ref": "#/$defs/EvidenceSource"
+      },
+      "subject": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "Özne sınıfı: person, forklift, ...",
+        "title": "Subject"
+      },
+      "t": {
+        "description": "Video başından itibaren saniye",
+        "minimum": 0.0,
+        "title": "T",
+        "type": "number"
+      },
+      "t_end": {
+        "anyOf": [
+          {
+            "description": "Video başından itibaren saniye",
+            "minimum": 0.0,
+            "type": "number"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "Aralıklı olgular için bitiş",
+        "title": "T End"
+      },
+      "track_id": {
+        "anyOf": [
+          {
+            "minimum": 0,
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "Takip kimliği (varsa)",
+        "title": "Track Id"
+      },
+      "zone": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "Bölge kimliği (ör. depo_A_kavsak)",
+        "title": "Zone"
+      }
+    },
+    "required": [
+      "id",
+      "t",
+      "source",
+      "kind",
+      "confidence"
+    ],
+    "title": "EvidenceItem",
+    "type": "object"
+  },
+  "EvidenceQuery": {
+    "$defs": {
+      "EvidenceSource": {
+        "description": "Bir olgunun nereden geldiği. Açıklanabilirliğin temel taşı.\n\n``VLM`` dışındakiler DETERMİNİSTİK kaynaklardır; verifier düğümü VLM iddialarını\nyalnızca deterministik kaynaklara karşı doğrular.",
+        "enum": [
+          "detector",
+          "tracker",
+          "pose",
+          "zone",
+          "audio",
+          "asr",
+          "motion",
+          "vlm",
+          "operator",
+          "memory"
+        ],
+        "title": "EvidenceSource",
+        "type": "string"
+      }
+    },
+    "additionalProperties": false,
+    "description": "Ajanın Kanıt Grafiği'ni sorgulama sözleşmesi.\n\nBu, Hasan → Alperen arasındaki DONDURULMUŞ SINIR #1'dir. Ajan grafiğe doğrudan\nerişmez; yalnızca bu sorguyu üreten bir araç çağırır.",
+    "properties": {
+      "deterministic_only": {
+        "default": false,
+        "description": "Verifier bunu True ile çağırır",
+        "title": "Deterministic Only",
+        "type": "boolean"
+      },
+      "kinds": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Kinds"
+      },
+      "limit": {
+        "default": 200,
+        "maximum": 5000,
+        "minimum": 1,
+        "title": "Limit",
+        "type": "integer"
+      },
+      "min_confidence": {
+        "default": 0.0,
+        "description": "Güven skoru [0,1]",
+        "maximum": 1.0,
+        "minimum": 0.0,
+        "title": "Min Confidence",
+        "type": "number"
+      },
+      "sources": {
+        "anyOf": [
+          {
+            "items": {
+              "$ref": "#/$defs/EvidenceSource"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Sources"
+      },
+      "subjects": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Subjects"
+      },
+      "t_end": {
+        "anyOf": [
+          {
+            "description": "Video başından itibaren saniye",
+            "minimum": 0.0,
+            "type": "number"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "T End"
+      },
+      "t_start": {
+        "anyOf": [
+          {
+            "description": "Video başından itibaren saniye",
+            "minimum": 0.0,
+            "type": "number"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "T Start"
+      },
+      "track_ids": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Track Ids"
+      },
+      "zones": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Zones"
+      }
+    },
+    "title": "EvidenceQuery",
+    "type": "object"
+  },
+  "EvidenceQueryResult": {
+    "$defs": {
+      "BoundingBox": {
+        "additionalProperties": false,
+        "description": "Normalize edilmiş kutu [0,1] — çözünürlükten bağımsız.",
+        "properties": {
+          "x1": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "X1",
+            "type": "number"
+          },
+          "x2": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "X2",
+            "type": "number"
+          },
+          "y1": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Y1",
+            "type": "number"
+          },
+          "y2": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Y2",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x1",
+          "y1",
+          "x2",
+          "y2"
+        ],
+        "title": "BoundingBox",
+        "type": "object"
+      },
+      "EvidenceItem": {
+        "additionalProperties": false,
+        "description": "Kanıt Grafiği'nin atomu: tek bir zaman damgalı, kaynaklı gözlem.\n\nÖrnek::\n\n    EvidenceItem(\n        id=\"ev_0042\", t=15.2, source=EvidenceSource.DETECTOR,\n        kind=\"object_detected\", confidence=0.91,\n        subject=\"forklift\", track_id=7,\n        bbox=BoundingBox(x1=.3, y1=.4, x2=.7, y2=.9),\n        detail=\"forklift bbox en/boy oranı 0.5 → 1.4 (devrilme sezgisi)\",\n    )",
+        "properties": {
+          "attrs": {
+            "additionalProperties": true,
+            "description": "Kaynağa özgü ek alanlar (şemasız kaçış kapısı)",
+            "title": "Attrs",
+            "type": "object"
+          },
+          "bbox": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/BoundingBox"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "confidence": {
+            "description": "Güven skoru [0,1]",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "detail": {
+            "default": "",
+            "description": "Türkçe, insan-okur açıklama",
+            "title": "Detail",
+            "type": "string"
+          },
+          "id": {
+            "description": "Kararlı kimlik: ev_0001",
+            "pattern": "^ev_\\d{4,}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "description": "Olgu tipi, snake_case (ör. object_detected, fall_detected, zone_violation, speech_segment, audio_event, no_motion)",
+            "minLength": 1,
+            "title": "Kind",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/$defs/EvidenceSource"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Özne sınıfı: person, forklift, ...",
+            "title": "Subject"
+          },
+          "t": {
+            "description": "Video başından itibaren saniye",
+            "minimum": 0.0,
+            "title": "T",
+            "type": "number"
+          },
+          "t_end": {
+            "anyOf": [
+              {
+                "description": "Video başından itibaren saniye",
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Aralıklı olgular için bitiş",
+            "title": "T End"
+          },
+          "track_id": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Takip kimliği (varsa)",
+            "title": "Track Id"
+          },
+          "zone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Bölge kimliği (ör. depo_A_kavsak)",
+            "title": "Zone"
+          }
+        },
+        "required": [
+          "id",
+          "t",
+          "source",
+          "kind",
+          "confidence"
+        ],
+        "title": "EvidenceItem",
+        "type": "object"
+      },
+      "EvidenceSource": {
+        "description": "Bir olgunun nereden geldiği. Açıklanabilirliğin temel taşı.\n\n``VLM`` dışındakiler DETERMİNİSTİK kaynaklardır; verifier düğümü VLM iddialarını\nyalnızca deterministik kaynaklara karşı doğrular.",
+        "enum": [
+          "detector",
+          "tracker",
+          "pose",
+          "zone",
+          "audio",
+          "asr",
+          "motion",
+          "vlm",
+          "operator",
+          "memory"
+        ],
+        "title": "EvidenceSource",
+        "type": "string"
+      }
+    },
+    "additionalProperties": false,
+    "description": "Sorgu sonucu + ajanın bağlam bütçesini yönetmesi için sayaçlar.",
+    "properties": {
+      "items": {
+        "items": {
+          "$ref": "#/$defs/EvidenceItem"
+        },
+        "title": "Items",
+        "type": "array"
+      },
+      "query_ms": {
+        "default": 0.0,
+        "minimum": 0.0,
+        "title": "Query Ms",
+        "type": "number"
+      },
+      "total_matched": {
+        "description": "limit uygulanmadan önceki eşleşme sayısı",
+        "minimum": 0,
+        "title": "Total Matched",
+        "type": "integer"
+      },
+      "truncated": {
+        "default": false,
+        "title": "Truncated",
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "items",
+      "total_matched"
+    ],
+    "title": "EvidenceQueryResult",
+    "type": "object"
+  },
+  "RecommendedAction": {
+    "$defs": {
+      "ActionPriority": {
+        "enum": [
+          "P0",
+          "P1",
+          "P2",
+          "P3"
+        ],
+        "title": "ActionPriority",
+        "type": "string"
+      },
+      "ActionStatus": {
+        "enum": [
+          "önerildi",
+          "operatör_onayı_bekliyor",
+          "onaylandı",
+          "reddedildi",
+          "yürütülüyor",
+          "tamamlandı",
+          "başarısız"
+        ],
+        "title": "ActionStatus",
+        "type": "string"
+      }
+    },
+    "additionalProperties": false,
+    "description": "Operatöre sunulan, gerekçeli ve yürütülebilir aksiyon.",
+    "properties": {
+      "action": {
+        "description": "Türkçe emir kipi, örn. Sağlık ekibini çağır",
+        "minLength": 1,
+        "title": "Action",
+        "type": "string"
+      },
+      "deadline_sec": {
+        "anyOf": [
+          {
+            "minimum": 0,
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "Hedef müdahale süresi",
+        "title": "Deadline Sec"
+      },
+      "id": {
+        "pattern": "^act_\\d{3,}$",
+        "title": "Id",
+        "type": "string"
+      },
+      "owner": {
+        "description": "saglik_birimi, guvenlik, vardiya_amiri, bakim, isg",
+        "title": "Owner",
+        "type": "string"
+      },
+      "priority": {
+        "$ref": "#/$defs/ActionPriority"
+      },
+      "rationale": {
+        "default": "",
+        "description": "Neden bu aksiyon — Türkçe",
+        "title": "Rationale",
+        "type": "string"
+      },
+      "requires_confirmation": {
+        "default": false,
+        "description": "Geri alınamaz aksiyonlar (112 arama, saha kapatma) True olmalı. LangGraph interrupt() ile operatör onayı beklenir.",
+        "title": "Requires Confirmation",
+        "type": "boolean"
+      },
+      "sop_ref": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "Dayandığı prosedür maddesi, örn. ISG-PR-014 madde 4.2",
+        "title": "Sop Ref"
+      },
+      "status": {
+        "$ref": "#/$defs/ActionStatus",
+        "default": "önerildi"
+      },
+      "tool": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "Bu aksiyonu yürütecek mock aracın adı (varsa)",
+        "title": "Tool"
+      },
+      "tool_args": {
+        "additionalProperties": true,
+        "title": "Tool Args",
+        "type": "object"
+      },
+      "triggering_event_ids": {
+        "description": "Bu aksiyonu doğuran olay(lar) — BOŞ OLAMAZ prod'da",
+        "items": {
+          "type": "string"
+        },
+        "title": "Triggering Event Ids",
+        "type": "array"
+      }
+    },
+    "required": [
+      "id",
+      "action",
+      "priority",
+      "owner"
+    ],
+    "title": "RecommendedAction",
+    "type": "object"
+  },
+  "RiskAssessment": {
+    "$defs": {
+      "RiskFactor": {
+        "additionalProperties": false,
+        "description": "Risk skorunu oluşturan tekil etken — açıklanabilirlik için ayrıştırılmıştır.",
+        "properties": {
+          "name": {
+            "description": "yaralanma_olasiligi, maruziyet, siddet, mudahale_gecikmesi",
+            "title": "Name",
+            "type": "string"
+          },
+          "rationale": {
+            "default": "",
+            "title": "Rationale",
+            "type": "string"
+          },
+          "value": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Value",
+            "type": "number"
+          },
+          "weight": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Weight",
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "weight",
+          "value"
+        ],
+        "title": "RiskFactor",
+        "type": "object"
+      },
+      "RiskLevel": {
+        "description": "Şartnamedeki ``\"risk\": \"Yüksek\"`` alanının izinli değerleri.\n\nSıralıdır; karşılaştırma için :func:`risk_rank` kullanın.",
+        "enum": [
+          "Yok",
+          "Düşük",
+          "Orta",
+          "Yüksek",
+          "Kritik"
+        ],
+        "title": "RiskLevel",
+        "type": "string"
+      }
+    },
+    "additionalProperties": false,
+    "description": "Video geneli risk değerlendirmesi. LLM üretir, emniyet bariyeri denetler.",
+    "properties": {
+      "driving_event_ids": {
+        "description": "Bu seviyeyi belirleyen olaylar",
+        "items": {
+          "type": "string"
+        },
+        "title": "Driving Event Ids",
+        "type": "array"
+      },
+      "factors": {
+        "items": {
+          "$ref": "#/$defs/RiskFactor"
+        },
+        "title": "Factors",
+        "type": "array"
+      },
+      "guard_applied": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "Uygulanan bariyer kuralının adı",
+        "title": "Guard Applied"
+      },
+      "level": {
+        "$ref": "#/$defs/RiskLevel"
+      },
+      "model_level": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/RiskLevel"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "Bariyer ÖNCESİ modelin verdiği seviye (şeffaflık izi)"
+      },
+      "rationale": {
+        "description": "Türkçe gerekçe — operatörün okuyacağı metin",
+        "title": "Rationale",
+        "type": "string"
+      },
+      "score": {
+        "description": "Sürekli risk skoru [0,1]",
+        "maximum": 1.0,
+        "minimum": 0.0,
+        "title": "Score",
+        "type": "number"
+      },
+      "uncertainty": {
+        "default": "",
+        "description": "Neyin doğrulanamadığı. Boş bırakmak yerine dürüst olun.",
+        "title": "Uncertainty",
+        "type": "string"
+      }
+    },
+    "required": [
+      "level",
+      "score",
+      "rationale"
+    ],
+    "title": "RiskAssessment",
+    "type": "object"
+  },
+  "SegmentAnalysis": {
+    "additionalProperties": false,
+    "description": "VLM'in tek bir video segmenti için ürettiği yapılandırılmış çıktı (L3).\n\nEmre -> Alperen arasındaki DONDURULMUŞ SINIR #2'nin parçası.\nHiyerarşik özetleme bunları toplayarak video geneline çıkar.",
+    "properties": {
+      "anomaly": {
+        "default": false,
+        "description": "Olağandışı bir şey var mı",
+        "title": "Anomaly",
+        "type": "boolean"
+      },
+      "anomaly_reason": {
+        "default": "",
+        "title": "Anomaly Reason",
+        "type": "string"
+      },
+      "candidate_events": {
+        "description": "Ham olay adayları — henüz doğrulanmamış",
+        "items": {
+          "type": "string"
+        },
+        "title": "Candidate Events",
+        "type": "array"
+      },
+      "confidence": {
+        "default": 0.5,
+        "description": "Güven skoru [0,1]",
+        "maximum": 1.0,
+        "minimum": 0.0,
+        "title": "Confidence",
+        "type": "number"
+      },
+      "description": {
+        "description": "Segmentin kısa Türkçe betimlemesi",
+        "title": "Description",
+        "type": "string"
+      },
+      "n_frames_used": {
+        "default": 0,
+        "minimum": 0,
+        "title": "N Frames Used",
+        "type": "integer"
+      },
+      "needs_closer_look": {
+        "default": false,
+        "description": "True ise ajan bu aralığı yüksek fps ile YENİDEN sorgular (kaba-ince temellendirme döngüsü)",
+        "title": "Needs Closer Look",
+        "type": "boolean"
+      },
+      "observed_actions": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Observed Actions",
+        "type": "array"
+      },
+      "observed_objects": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Observed Objects",
+        "type": "array"
+      },
+      "segment_id": {
+        "title": "Segment Id",
+        "type": "string"
+      },
+      "t_end": {
+        "description": "Video başından itibaren saniye",
+        "minimum": 0.0,
+        "title": "T End",
+        "type": "number"
+      },
+      "t_start": {
+        "description": "Video başından itibaren saniye",
+        "minimum": 0.0,
+        "title": "T Start",
+        "type": "number"
+      }
+    },
+    "required": [
+      "segment_id",
+      "t_start",
+      "t_end",
+      "description"
+    ],
+    "title": "SegmentAnalysis",
+    "type": "object"
+  },
+  "ToolCall": {
+    "additionalProperties": false,
+    "description": "Ajanın yaptığı tek araç çağrısı — trace ve KPI'ın birimi.",
+    "properties": {
+      "args": {
+        "additionalProperties": true,
+        "title": "Args",
+        "type": "object"
+      },
+      "attempt": {
+        "default": 1,
+        "minimum": 1,
+        "title": "Attempt",
+        "type": "integer"
+      },
+      "call_id": {
+        "title": "Call Id",
+        "type": "string"
+      },
+      "reason": {
+        "default": "",
+        "description": "Ajan bunu NEDEN seçti (Türkçe, trace'te görünür)",
+        "title": "Reason",
+        "type": "string"
+      },
+      "tool": {
+        "title": "Tool",
+        "type": "string"
+      }
+    },
+    "required": [
+      "call_id",
+      "tool"
+    ],
+    "title": "ToolCall",
+    "type": "object"
+  },
+  "ToolResult": {
+    "$defs": {
+      "ToolErrorKind": {
+        "description": "Hata enjeksiyon motorunun üretebildiği arıza modları.\n\nAjanın her biri için farklı kurtarma stratejisi olmalı — Faz 3 kaos testi bunu ölçer.",
+        "enum": [
+          "timeout",
+          "unavailable",
+          "rate_limit",
+          "invalid_response",
+          "partial",
+          "not_found",
+          "permission_denied"
+        ],
+        "title": "ToolErrorKind",
+        "type": "string"
+      }
+    },
+    "additionalProperties": false,
+    "description": "Araç çağrısının sonucu. Hata da başarı da bu tiple döner — istisna fırlatılmaz.",
+    "properties": {
+      "attempts": {
+        "default": 1,
+        "minimum": 1,
+        "title": "Attempts",
+        "type": "integer"
+      },
+      "call_id": {
+        "title": "Call Id",
+        "type": "string"
+      },
+      "data": {
+        "default": null,
+        "title": "Data"
+      },
+      "error_kind": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/ToolErrorKind"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "error_message": {
+        "default": "",
+        "title": "Error Message",
+        "type": "string"
+      },
+      "latency_ms": {
+        "default": 0.0,
+        "minimum": 0.0,
+        "title": "Latency Ms",
+        "type": "number"
+      },
+      "ok": {
+        "title": "Ok",
+        "type": "boolean"
+      },
+      "recovered_by": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Recovered By"
+      },
+      "tool": {
+        "title": "Tool",
+        "type": "string"
+      }
+    },
+    "required": [
+      "call_id",
+      "tool",
+      "ok"
+    ],
+    "title": "ToolResult",
+    "type": "object"
+  },
+  "ToolSpec": {
+    "$defs": {
+      "ToolCategory": {
+        "description": "Ajanın araç seçim uzayı. Router önce kategori, sonra araç seçer.",
+        "enum": [
+          "perception",
+          "understanding",
+          "knowledge",
+          "memory",
+          "action"
+        ],
+        "title": "ToolCategory",
+        "type": "string"
+      }
+    },
+    "additionalProperties": false,
+    "description": "Aracın ajana tanıtımı. LLM'e verilen JSON şeması buradan üretilir.",
+    "properties": {
+      "category": {
+        "$ref": "#/$defs/ToolCategory"
+      },
+      "description": {
+        "description": "LLM'in NE ZAMAN kullanacağını anlaması için Türkçe açıklama. Bu metin araç seçim doğruluğunu doğrudan etkiler — özenle yazın.",
+        "minLength": 10,
+        "title": "Description",
+        "type": "string"
+      },
+      "fallback_tools": {
+        "description": "Bu araç UNAVAILABLE dönerse sırayla denenecek alternatifler",
+        "items": {
+          "type": "string"
+        },
+        "title": "Fallback Tools",
+        "type": "array"
+      },
+      "is_irreversible": {
+        "default": false,
+        "description": "True ise ajan yürütmeden ÖNCE operatör onayı ister (HITL). 112 arama, saha kapatma, alarm çalma gibi.",
+        "title": "Is Irreversible",
+        "type": "boolean"
+      },
+      "max_retries": {
+        "default": 2,
+        "maximum": 5,
+        "minimum": 0,
+        "title": "Max Retries",
+        "type": "integer"
+      },
+      "name": {
+        "pattern": "^[a-z][a-z0-9_]*$",
+        "title": "Name",
+        "type": "string"
+      },
+      "parameters_schema": {
+        "additionalProperties": true,
+        "description": "JSON Schema (Pydantic model_json_schema çıktısı)",
+        "title": "Parameters Schema",
+        "type": "object"
+      },
+      "returns_schema": {
+        "additionalProperties": true,
+        "title": "Returns Schema",
+        "type": "object"
+      },
+      "typical_latency_ms": {
+        "default": 100.0,
+        "minimum": 0.0,
+        "title": "Typical Latency Ms",
+        "type": "number"
+      }
+    },
+    "required": [
+      "name",
+      "category",
+      "description",
+      "parameters_schema"
+    ],
+    "title": "ToolSpec",
+    "type": "object"
+  },
+  "TrackSegment": {
+    "additionalProperties": false,
+    "description": "Bir varlığın zaman içindeki sürekli izi. Nedenselliğin taşıyıcısı.",
+    "properties": {
+      "cls": {
+        "description": "person, forklift, vehicle, ...",
+        "title": "Cls",
+        "type": "string"
+      },
+      "confidence": {
+        "description": "Güven skoru [0,1]",
+        "maximum": 1.0,
+        "minimum": 0.0,
+        "title": "Confidence",
+        "type": "number"
+      },
+      "mean_speed": {
+        "anyOf": [
+          {
+            "minimum": 0.0,
+            "type": "number"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "Normalize kare/sn hız — hareketsizlik tespiti için",
+        "title": "Mean Speed"
+      },
+      "n_observations": {
+        "default": 0,
+        "minimum": 0,
+        "title": "N Observations",
+        "type": "integer"
+      },
+      "t_end": {
+        "description": "Video başından itibaren saniye",
+        "minimum": 0.0,
+        "title": "T End",
+        "type": "number"
+      },
+      "t_start": {
+        "description": "Video başından itibaren saniye",
+        "minimum": 0.0,
+        "title": "T Start",
+        "type": "number"
+      },
+      "track_id": {
+        "minimum": 0,
+        "title": "Track Id",
+        "type": "integer"
+      },
+      "zones": {
+        "description": "Uğradığı bölgeler, sırayla",
+        "items": {
+          "type": "string"
+        },
+        "title": "Zones",
+        "type": "array"
+      }
+    },
+    "required": [
+      "track_id",
+      "cls",
+      "t_start",
+      "t_end",
+      "confidence"
+    ],
+    "title": "TrackSegment",
+    "type": "object"
+  },
+  "VLMRequest": {
+    "$defs": {
+      "FrameRef": {
+        "additionalProperties": false,
+        "description": "VLM'e gönderilen tek kare.\n\n``data_b64`` kasete YAZILMAZ (dosya şişer); yerine ``sha256`` tutulur. Kaset\neşleştirmesi hash üzerinden yapılır, görüntünün kendisi diskte ayrı durur.",
+        "properties": {
+          "data_b64": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Data B64"
+          },
+          "height": {
+            "exclusiveMinimum": 0,
+            "title": "Height",
+            "type": "integer"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Diskteki yol (varsa)",
+            "title": "Path"
+          },
+          "sha256": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Sha256",
+            "type": "string"
+          },
+          "t": {
+            "description": "Karenin video içindeki zamanı — prompt'a da yazılır",
+            "minimum": 0.0,
+            "title": "T",
+            "type": "number"
+          },
+          "width": {
+            "exclusiveMinimum": 0,
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "t",
+          "sha256",
+          "width",
+          "height"
+        ],
+        "title": "FrameRef",
+        "type": "object"
+      },
+      "MessageRole": {
+        "enum": [
+          "system",
+          "user",
+          "assistant",
+          "tool"
+        ],
+        "title": "MessageRole",
+        "type": "string"
+      },
+      "VLMMessage": {
+        "additionalProperties": false,
+        "description": "Çok-ortamlı mesaj: metin + kareler.",
+        "properties": {
+          "frames": {
+            "items": {
+              "$ref": "#/$defs/FrameRef"
+            },
+            "title": "Frames",
+            "type": "array"
+          },
+          "role": {
+            "$ref": "#/$defs/MessageRole"
+          },
+          "text": {
+            "default": "",
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "title": "VLMMessage",
+        "type": "object"
+      }
+    },
+    "additionalProperties": false,
+    "description": "VLM'e giden istek. Hash'i kaset anahtarıdır.",
+    "properties": {
+      "json_schema": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Json Schema"
+      },
+      "max_tokens": {
+        "default": 2048,
+        "exclusiveMinimum": 0,
+        "title": "Max Tokens",
+        "type": "integer"
+      },
+      "messages": {
+        "items": {
+          "$ref": "#/$defs/VLMMessage"
+        },
+        "title": "Messages",
+        "type": "array"
+      },
+      "model": {
+        "default": "",
+        "description": "Boşsa profil varsayılanı kullanılır",
+        "title": "Model",
+        "type": "string"
+      },
+      "prompt_id": {
+        "default": "",
+        "description": "Prompt kütüphanesindeki sürüm, ör. segment_analysis@v2",
+        "title": "Prompt Id",
+        "type": "string"
+      },
+      "seed": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": 0,
+        "description": "Tekrar üretilebilirlik için",
+        "title": "Seed"
+      },
+      "temperature": {
+        "default": 0.0,
+        "maximum": 2.0,
+        "minimum": 0.0,
+        "title": "Temperature",
+        "type": "number"
+      }
+    },
+    "required": [
+      "messages"
+    ],
+    "title": "VLMRequest",
+    "type": "object"
+  },
+  "VLMResponse": {
+    "$defs": {
+      "VLMUsage": {
+        "additionalProperties": false,
+        "properties": {
+          "completion_tokens": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Completion Tokens",
+            "type": "integer"
+          },
+          "latency_ms": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "title": "Latency Ms",
+            "type": "number"
+          },
+          "prompt_tokens": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Prompt Tokens",
+            "type": "integer"
+          },
+          "ttft_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Time to first token",
+            "title": "Ttft Ms"
+          }
+        },
+        "title": "VLMUsage",
+        "type": "object"
+      }
+    },
+    "additionalProperties": false,
+    "properties": {
+      "finish_reason": {
+        "default": "stop",
+        "title": "Finish Reason",
+        "type": "string"
+      },
+      "from_cache": {
+        "default": false,
+        "description": "Kasetten mi geldi",
+        "title": "From Cache",
+        "type": "boolean"
+      },
+      "model": {
+        "default": "",
+        "title": "Model",
+        "type": "string"
+      },
+      "repair_attempts": {
+        "default": 0,
+        "description": "JSON onarım turu sayısı — 0 olması hedeftir",
+        "minimum": 0,
+        "title": "Repair Attempts",
+        "type": "integer"
+      },
+      "schema_valid": {
+        "anyOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "json_schema istendiyse doğrulama sonucu",
+        "title": "Schema Valid"
+      },
+      "text": {
+        "title": "Text",
+        "type": "string"
+      },
+      "usage": {
+        "$ref": "#/$defs/VLMUsage"
+      }
+    },
+    "required": [
+      "text"
+    ],
+    "title": "VLMResponse",
+    "type": "object"
+  }
+}

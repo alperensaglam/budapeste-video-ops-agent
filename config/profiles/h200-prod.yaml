@@ -1,0 +1,71 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# h200-prod — Yarışma donanımı (NVIDIA H200, 141 GB HBM3e).
+#
+# Final performans sayıları BU profilde ölçülüp raporlanır (RTF, TTFT, tok/s,
+# tepe VRAM). Şartname Bölüm 4: "Video işleme süresi, model inference süresi,
+# bellek ve donanım kullanımı ... önemli değerlendirme kriterleri arasındadır."
+#
+# İki ayrı vLLM örneği:
+#   :8000  Qwen3-VL-32B-Instruct FP8  → ağır görsel anlama
+#   :8001  Qwen3-8B-Instruct          → hızlı planlama/yönlendirme/yargıçlık
+# Ayrım, ajan turlarındaki gecikmeyi ciddi biçimde düşürür.
+#
+# H200 Hopper (sm90): FP8 native desteklenir.
+# ─────────────────────────────────────────────────────────────────────────────
+name: h200-prod
+description: "Yarışma donanımı. FP8 + prefix caching. Final KPI sayıları burada üretilir."
+
+cassette_dir: data/cassettes
+cassette_mode: passthrough    # gerçek koşu; kaset devre dışı
+
+vlm:
+  backend: vllm
+  model: Qwen/Qwen3-VL-32B-Instruct
+  base_url: http://localhost:8000/v1
+  dtype: fp8                  # Hopper native FP8
+  max_model_len: 65536
+  guided_json: true
+  enable_prefix_caching: true # uzun video bağlamı turlar arası paylaşılır
+  max_concurrency: 8
+  request_timeout_s: 120.0
+
+planner:
+  backend: vllm
+  model: Qwen/Qwen3-8B
+  base_url: http://localhost:8001/v1
+  max_tokens: 2048
+
+sampling:
+  base_fps: 2.0
+  max_frames_per_segment: 16
+  max_frames_total: 128
+  zoom_fps: 8.0
+  segment_seconds: 8.0
+  adaptive: true
+
+perception:
+  device: cuda
+  detector: rtdetrv2_r50
+  detector_conf: 0.30
+  enable_pose: true
+  enable_asr: true
+  asr_model: large-v3
+  asr_compute_type: float16
+  enable_audio_events: true
+  max_video_seconds: 3600.0   # vardiya raporu senaryosu (1 saatlik kayıt)
+
+agent:
+  max_turns: 20
+  max_tool_calls_per_turn: 10
+  enable_verifier: true
+  support_threshold: 0.55
+  enable_zoom_loop: true
+  max_zoom_iterations: 3
+  enable_clarifying_questions: true
+  enable_episodic_memory: true
+  enable_sop_rag: true
+  require_confirmation_for_irreversible: true
+  tool_retry_max: 3
+
+faults:
+  enabled: false
