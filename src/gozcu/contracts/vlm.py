@@ -7,7 +7,7 @@ saniyeler içinde çalışır. GPU darboğazı 4 kişiyi değil 1 kişiyi bağla
 Aynı arayüz üç profilde de geçerlidir:
     cpu-dev    -> CassetteVLM (kayıttan oynatma) veya küçük GGUF model
     colab-t4   -> vLLM @ localhost, Qwen3-VL-4B/8B AWQ
-    h200-prod  -> vLLM @ localhost, Qwen3-VL-32B FP8
+    h200-prod  -> organizasyonun OpenAI-uyumlu Slot B ``vlm`` hizmeti, BF16
 
 Kaset anahtarı, isteğin İÇERİK HASH'idir; böylece aynı istek her zaman aynı yanıtı
 alır (testler deterministik) ve gerçek çalıştırmalarda cache görevi görür.

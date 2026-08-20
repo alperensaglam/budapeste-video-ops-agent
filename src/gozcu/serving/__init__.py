@@ -7,6 +7,8 @@ from gozcu.serving.cassette import (
     cassette_for,
     merge_cassettes,
 )
+from gozcu.serving.factory import create_vlm_client
+from gozcu.serving.vllm_client import VLLMClient, VLLMClientError
 
 __all__ = [
     "Cassette",
@@ -14,6 +16,9 @@ __all__ = [
     "CassetteVLM",
     "RecordingVLM",
     "ScriptedVLM",
+    "VLLMClient",
+    "VLLMClientError",
     "cassette_for",
+    "create_vlm_client",
     "merge_cassettes",
 ]

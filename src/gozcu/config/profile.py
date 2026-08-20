@@ -5,7 +5,7 @@ kodun üç ortamda da çalışmasını sağlar::
 
     cpu-dev     Herkesin dizüstü. VLM = kaset replay. Algı = ONNX CPU, düşük fps.
     colab-t4    Kaggle 2xT4 (ücretsiz). VLM = Qwen3-VL-4B/8B AWQ, fp16.
-    h200-prod   Yarışma donanımı. VLM = Qwen3-VL-32B FP8 + ayrı planner.
+    h200-prod   Resmi H200 altyapısı. VLM = Slot B'deki ``vlm`` hizmeti (BF16).
 
 Kullanım::
 
@@ -36,7 +36,7 @@ DEFAULT_PROFILE = "cpu-dev"
 
 class VLMBackend(StrEnum):
     CASSETTE = "cassette"  # kayıttan oynatma (CPU, deterministik, testler)
-    VLLM = "vllm"  # yerel vLLM OpenAI-uyumlu endpoint
+    VLLM = "vllm"  # yerel veya resmi OpenAI-uyumlu vLLM endpoint'i
     LLAMACPP = "llamacpp"  # CPU'da gerçek küçük model (GGUF)
     SCRIPTED = "scripted"  # birim testlerde sabit yanıt
 
@@ -55,8 +55,21 @@ class SamplingConfig(GozcuModel):
 class VLMConfig(GozcuModel):
     backend: VLMBackend = VLMBackend.CASSETTE
     model: str = Field(default="cassette", description="Model kimliği veya HF repo adı")
-    base_url: str = Field(default="http://localhost:8000/v1", description="YEREL vLLM endpoint")
-    api_key: str = Field(default="EMPTY", description="vLLM yerel; gerçek anahtar değildir")
+    base_url: str = Field(
+        default="http://localhost:8000/v1", description="OpenAI-uyumlu vLLM endpoint'i"
+    )
+    base_url_env: str | None = Field(
+        default=None,
+        description="Verildiyse endpoint bu ortam değişkeninden okunur (sırlar YAML'a girmez)",
+    )
+    api_key: str = Field(
+        default="EMPTY",
+        description="Yerel vLLM varsayılanı; resmi anahtar için api_key_env kullanılır",
+    )
+    api_key_env: str | None = Field(
+        default=None,
+        description="Takıma özel erişim anahtarını taşıyan ortam değişkeninin adı",
+    )
     max_model_len: int = Field(default=32768, gt=0)
     dtype: str = Field(default="auto", description="auto | half (T4) | bfloat16 | fp8 (H200)")
     temperature: float = Field(default=0.0, ge=0.0)
@@ -69,6 +82,30 @@ class VLMConfig(GozcuModel):
     )
     request_timeout_s: float = Field(default=120.0, gt=0)
     max_concurrency: int = Field(default=2, ge=1, description="Eşzamanlı VLM çağrısı tavanı")
+
+    def resolved_base_url(self) -> str:
+        """Endpoint'i güvenli biçimde çöz; gerekli ortam değişkeni yoksa erken hata ver."""
+        if self.base_url_env:
+            value = os.environ.get(self.base_url_env, "").strip()
+            if not value:
+                raise RuntimeError(
+                    f"VLM endpoint ortam değişkeni tanımlı değil: {self.base_url_env}"
+                )
+            return value.rstrip("/")
+        if not self.base_url.strip():
+            raise RuntimeError("VLM endpoint'i boş")
+        return self.base_url.rstrip("/")
+
+    def resolved_api_key(self) -> str:
+        """API anahtarını YAML'a yazmadan ortamdan çöz."""
+        if self.api_key_env:
+            value = os.environ.get(self.api_key_env, "").strip()
+            if not value:
+                raise RuntimeError(
+                    f"VLM erişim anahtarı ortam değişkeni tanımlı değil: {self.api_key_env}"
+                )
+            return value
+        return self.api_key
 
 
 class PlannerConfig(GozcuModel):
